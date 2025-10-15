@@ -41,7 +41,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
   final TextEditingController _lngController = TextEditingController();
   final TextEditingController _addressController = TextEditingController();
   List<Location> _searchResults = [];
-  
+
   // Auto-fallback timer
   Timer? _mapInitTimer;
 
@@ -51,7 +51,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
     print('LocationPickerScreen initializing...');
     _initializeLocation();
     _testGoogleMapsAPI();
-    
+
     // Auto-fallback if map doesn't initialize in 8 seconds
     _mapInitTimer = Timer(const Duration(seconds: 8), () {
       if (!_mapInitialized && mounted) {
@@ -65,7 +65,9 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                 Icon(Icons.warning, color: Colors.white),
                 SizedBox(width: 8),
                 Expanded(
-                  child: Text('Map tiles not loading. Use WebView or Manual Entry.'),
+                  child: Text(
+                    'Map tiles not loading. Use WebView or Manual Entry.',
+                  ),
                 ),
               ],
             ),
@@ -74,13 +76,15 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
               label: 'WebView',
               textColor: Colors.white,
               onPressed: () {
-                Navigator.of(context).push(MaterialPageRoute(
-                  builder: (ctx) => WebMapView(
-                    latitude: _selectedLocation.latitude,
-                    longitude: _selectedLocation.longitude,
-                    address: _selectedAddress,
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (ctx) => WebMapView(
+                      latitude: _selectedLocation.latitude,
+                      longitude: _selectedLocation.longitude,
+                      address: _selectedAddress,
+                    ),
                   ),
-                ));
+                );
               },
             ),
           ),
@@ -627,7 +631,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                         _mapInitialized = true;
                       });
                       print('Google Map initialized successfully');
-                      
+
                       // Cancel auto-fallback timer since map loaded successfully
                       _mapInitTimer?.cancel();
 
@@ -658,10 +662,7 @@ class _LocationPickerScreenState extends State<LocationPickerScreen> {
                     indoorViewEnabled: false,
                     // Disable lite mode to show actual map tiles
                     liteModeEnabled: false,
-                    minMaxZoomPreference: const MinMaxZoomPreference(
-                      8.0,
-                      20.0,
-                    ),
+                    minMaxZoomPreference: const MinMaxZoomPreference(8.0, 20.0),
                     cameraTargetBounds: CameraTargetBounds.unbounded,
                     mapType: MapType.normal,
                   ),

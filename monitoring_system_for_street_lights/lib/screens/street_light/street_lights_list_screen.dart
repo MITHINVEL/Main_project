@@ -14,13 +14,6 @@ class StreetLightsListScreen extends StatefulWidget {
 
 class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
   String _searchQuery = '';
-  String _selectedFilter = 'All';
-  final List<String> _filterOptions = [
-    'All',
-    'Active',
-    'Inactive',
-    'Maintenance',
-  ];
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +22,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
       appBar: _buildAppBar(),
       body: Column(
         children: [
-          _buildSearchAndFilter(),
+          _buildSearchBar(),
           Expanded(child: _buildStreetLightsList()),
         ],
       ),
@@ -50,20 +43,10 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           color: const Color(0xFF2D3748),
         ),
       ),
-      actions: [
-        IconButton(
-          onPressed: () {
-            // Filter options
-            _showFilterBottomSheet();
-          },
-          icon: Icon(Icons.tune, color: const Color(0xFF667EEA), size: 24.sp),
-        ),
-        SizedBox(width: 8.w),
-      ],
     );
   }
 
-  Widget _buildSearchAndFilter() {
+  Widget _buildSearchBar() {
     return Container(
       margin: EdgeInsets.all(20.w),
       child: Column(
@@ -106,51 +89,6 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
               ),
             ),
           ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.3),
-
-          SizedBox(height: 16.h),
-
-          // Filter Chips
-          SizedBox(
-            height: 40.h,
-            child: ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: _filterOptions.length,
-              itemBuilder: (context, index) {
-                final filter = _filterOptions[index];
-                final isSelected = _selectedFilter == filter;
-
-                return Container(
-                  margin: EdgeInsets.only(right: 12.w),
-                  child: FilterChip(
-                    label: Text(
-                      filter,
-                      style: TextStyle(
-                        fontSize: 14.sp,
-                        fontWeight: FontWeight.w500,
-                        color: isSelected
-                            ? Colors.white
-                            : const Color(0xFF667EEA),
-                      ),
-                    ),
-                    selected: isSelected,
-                    onSelected: (selected) {
-                      setState(() {
-                        _selectedFilter = filter;
-                      });
-                    },
-                    backgroundColor: Colors.white,
-                    selectedColor: const Color(0xFF667EEA),
-                    side: BorderSide(
-                      color: const Color(0xFF667EEA).withOpacity(0.3),
-                    ),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(20.r),
-                    ),
-                  ),
-                );
-              },
-            ),
-          ).animate().fadeIn(duration: 800.ms, delay: 200.ms),
         ],
       ),
     );
@@ -198,19 +136,14 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
       final data = light.data() as Map<String, dynamic>;
       final name = (data['name'] ?? '').toString().toLowerCase();
       final location = (data['location'] ?? '').toString().toLowerCase();
-      final status = data['status'] ?? 'Active';
 
-      // Search filter
+      // Search filter only
       final matchesSearch =
           _searchQuery.isEmpty ||
           name.contains(_searchQuery.toLowerCase()) ||
           location.contains(_searchQuery.toLowerCase());
 
-      // Status filter
-      final matchesFilter =
-          _selectedFilter == 'All' || status == _selectedFilter;
-
-      return matchesSearch && matchesFilter;
+      return matchesSearch;
     }).toList();
   }
 
@@ -251,24 +184,100 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                     // Header Row
                     Row(
                       children: [
-                        // Light Icon
+                        // Street Light Image or Icon
                         Container(
-                          width: 50.w,
-                          height: 50.h,
+                          width: 60.w,
+                          height: 60.h,
                           decoration: BoxDecoration(
-                            gradient: LinearGradient(
-                              colors: [
-                                const Color(0xFF667EEA),
-                                const Color(0xFF764BA2),
-                              ],
-                            ),
                             borderRadius: BorderRadius.circular(15.r),
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.1),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
                           ),
-                          child: Icon(
-                            Icons.lightbulb,
-                            color: Colors.white,
-                            size: 24.sp,
-                          ),
+                          child:
+                              lightData['imageUrl'] != null &&
+                                  (lightData['imageUrl'] as String).isNotEmpty
+                              ? ClipRRect(
+                                  borderRadius: BorderRadius.circular(15.r),
+                                  child: Image.network(
+                                    lightData['imageUrl'],
+                                    fit: BoxFit.cover,
+                                    width: 60.w,
+                                    height: 60.h,
+                                    loadingBuilder:
+                                        (context, child, loadingProgress) {
+                                          if (loadingProgress == null)
+                                            return child;
+                                          return Container(
+                                            width: 60.w,
+                                            height: 60.h,
+                                            decoration: BoxDecoration(
+                                              gradient: LinearGradient(
+                                                colors: [
+                                                  const Color(0xFF667EEA),
+                                                  const Color(0xFF764BA2),
+                                                ],
+                                              ),
+                                              borderRadius:
+                                                  BorderRadius.circular(15.r),
+                                            ),
+                                            child: Center(
+                                              child: CircularProgressIndicator(
+                                                valueColor:
+                                                    AlwaysStoppedAnimation<
+                                                      Color
+                                                    >(Colors.white),
+                                                strokeWidth: 2,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                    errorBuilder: (context, error, stackTrace) {
+                                      return Container(
+                                        width: 60.w,
+                                        height: 60.h,
+                                        decoration: BoxDecoration(
+                                          gradient: LinearGradient(
+                                            colors: [
+                                              const Color(0xFF667EEA),
+                                              const Color(0xFF764BA2),
+                                            ],
+                                          ),
+                                          borderRadius: BorderRadius.circular(
+                                            15.r,
+                                          ),
+                                        ),
+                                        child: Icon(
+                                          Icons.lightbulb,
+                                          color: Colors.white,
+                                          size: 28.sp,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                )
+                              : Container(
+                                  width: 60.w,
+                                  height: 60.h,
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      colors: [
+                                        const Color(0xFF667EEA),
+                                        const Color(0xFF764BA2),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(15.r),
+                                  ),
+                                  child: Icon(
+                                    Icons.lightbulb,
+                                    color: Colors.white,
+                                    size: 28.sp,
+                                  ),
+                                ),
                         ),
 
                         SizedBox(width: 16.w),
@@ -372,11 +381,21 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                           '${lightData['brightness'] ?? 80}%',
                         ),
                         SizedBox(width: 12.w),
-                        _buildDetailChip(
-                          Icons.schedule,
-                          'Schedule',
-                          lightData['autoSchedule'] == true ? 'Auto' : 'Manual',
-                        ),
+                        if (lightData['imageUrl'] != null &&
+                            (lightData['imageUrl'] as String).isNotEmpty)
+                          _buildDetailChip(
+                            Icons.photo_camera,
+                            'Image',
+                            'Available',
+                          )
+                        else
+                          _buildDetailChip(
+                            Icons.schedule,
+                            'Schedule',
+                            lightData['autoSchedule'] == true
+                                ? 'Auto'
+                                : 'Manual',
+                          ),
                       ],
                     ),
 
@@ -585,51 +604,6 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     } catch (e) {
       return '';
     }
-  }
-
-  void _showFilterBottomSheet() {
-    showModalBottomSheet(
-      context: context,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-      ),
-      builder: (context) {
-        return Container(
-          padding: EdgeInsets.all(24.w),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Filter Options',
-                style: TextStyle(
-                  fontSize: 20.sp,
-                  fontWeight: FontWeight.bold,
-                  color: const Color(0xFF2D3748),
-                ),
-              ),
-              SizedBox(height: 20.h),
-              ..._filterOptions.map((filter) {
-                return ListTile(
-                  title: Text(filter),
-                  leading: Radio<String>(
-                    value: filter,
-                    groupValue: _selectedFilter,
-                    onChanged: (value) {
-                      setState(() {
-                        _selectedFilter = value!;
-                      });
-                      Navigator.pop(context);
-                    },
-                  ),
-                );
-              }).toList(),
-              SizedBox(height: 20.h),
-            ],
-          ),
-        );
-      },
-    );
   }
 
   // Previously showed details in a bottom sheet; replaced by full-screen

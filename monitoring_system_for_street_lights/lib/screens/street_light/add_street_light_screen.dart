@@ -3,9 +3,13 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:path/path.dart' as path;
+import 'package:permission_handler/permission_handler.dart';
+import 'dart:io';
 import '../maps/location_picker_screen.dart';
-import '../maps/simple_map_test.dart';
-import '../maps/map_diagnostic_screen.dart';
 import '../../services/location_service.dart';
 
 class AddStreetLightScreen extends StatefulWidget {
@@ -36,6 +40,11 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
   bool _isScheduled = false;
   bool _isLoading = false;
 
+  // Image upload variables
+  File? _selectedImage;
+  String? _uploadedImageUrl;
+  bool _isImageUploading = false;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +59,424 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
     )..repeat();
 
     _animationController.forward();
+
+    // Request necessary permissions
+    _requestAllPermissions();
+  }
+
+  // Request all necessary permissions at startup
+  Future<void> _requestAllPermissions() async {
+    try {
+      // Check current permission status for all required permissions
+      bool cameraGranted = await Permission.camera.isGranted;
+      bool storageGranted =
+          await Permission.storage.isGranted ||
+          await Permission.photos.isGranted;
+      bool notificationGranted = await Permission.notification.isGranted;
+      bool locationGranted = await Permission.location.isGranted;
+
+      print('=== PERMISSION STATUS CHECK ===');
+      print('Camera: $cameraGranted');
+      print('Storage/Photos: $storageGranted');
+      print('Notification: $notificationGranted');
+      print('Location: $locationGranted');
+
+      // Also check camera status specifically
+      PermissionStatus cameraStatus = await Permission.camera.status;
+      print('Camera detailed status: $cameraStatus');
+
+      // Check if camera permission is available on this device
+      bool cameraAvailable =
+          await Permission.camera.isPermanentlyDenied == false;
+      print('Camera permission available: $cameraAvailable');
+
+      // If all permissions are granted, return
+      if (cameraGranted &&
+          storageGranted &&
+          notificationGranted &&
+          locationGranted) {
+        print('All permissions already granted');
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('All permissions are enabled! ✅'),
+              backgroundColor: Colors.green,
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+        return;
+      }
+
+      // Force camera permission request if not available
+      if (!cameraGranted) {
+        print('=== REQUESTING CAMERA PERMISSION ===');
+        PermissionStatus cameraResult = await Permission.camera.request();
+        print('Camera request result: $cameraResult');
+
+        if (cameraResult.isGranted) {
+          cameraGranted = true;
+        } else {
+          print('Camera permission denied - opening settings');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(
+                  'Camera permission required! Opening Settings...',
+                ),
+                backgroundColor: Colors.red,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          }
+          await Future.delayed(Duration(seconds: 1));
+          openAppSettings();
+          return;
+        }
+      }
+
+      // Create list of missing permissions
+      List<Permission> permissionsToRequest = [];
+      List<String> missingPermissionNames = [];
+
+      if (!storageGranted) {
+        permissionsToRequest.add(Permission.storage);
+        permissionsToRequest.add(Permission.photos);
+        missingPermissionNames.add('Gallery/Photos');
+      }
+      if (!notificationGranted) {
+        permissionsToRequest.add(Permission.notification);
+        missingPermissionNames.add('Notifications');
+      }
+      if (!locationGranted) {
+        permissionsToRequest.add(Permission.location);
+        missingPermissionNames.add('Location');
+      }
+
+      // Request remaining permissions if any
+      if (permissionsToRequest.isNotEmpty) {
+        // Show permission explanation dialog
+        if (mounted) {
+          bool userConsent = await _showPermissionRequestDialog(
+            missingPermissionNames,
+          );
+          if (!userConsent) {
+            return;
+          }
+        }
+
+        // Request missing permissions
+        Map<Permission, PermissionStatus> statuses = await permissionsToRequest
+            .request();
+
+        // Check results and provide specific guidance
+        List<String> stillDenied = [];
+
+        statuses.forEach((permission, status) {
+          String permName = _getPermissionName(permission);
+          if (status.isDenied || status.isPermanentlyDenied) {
+            stillDenied.add(permName);
+            print('$permName permission denied: $status');
+          } else {
+            print('$permName permission granted: $status');
+          }
+        });
+
+        if (mounted) {
+          if (stillDenied.isEmpty) {
+            // All permissions granted
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('All permissions granted successfully! 🎉'),
+                backgroundColor: Colors.green,
+                duration: Duration(seconds: 3),
+              ),
+            );
+          } else {
+            // Some permissions still denied - show settings dialog
+            _showPermissionSettingsDialog(stillDenied);
+          }
+        }
+      }
+    } catch (e) {
+      print('Error requesting permissions: $e');
+      // If there's an error, directly open settings
+      if (mounted) {
+        _showErrorAndOpenSettings();
+      }
+    }
+  }
+
+  // Get human readable permission name
+  String _getPermissionName(Permission permission) {
+    switch (permission) {
+      case Permission.camera:
+        return 'Camera';
+      case Permission.storage:
+      case Permission.photos:
+        return 'Gallery/Photos';
+      case Permission.notification:
+        return 'Notifications';
+      case Permission.location:
+        return 'Location';
+      default:
+        return permission.toString();
+    }
+  }
+
+  // Show permission request explanation dialog
+  Future<bool> _showPermissionRequestDialog(List<String> permissions) async {
+    return await showDialog<bool>(
+          context: context,
+          barrierDismissible: false,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.r),
+              ),
+              title: Row(
+                children: [
+                  Icon(Icons.security, color: Color(0xFF667EEA), size: 28.sp),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      'Enable Permissions',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This app needs the following permissions to work properly:',
+                    style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 15.h),
+                  ...permissions
+                      .map(
+                        (permission) => Padding(
+                          padding: EdgeInsets.symmetric(vertical: 4.h),
+                          child: Row(
+                            children: [
+                              Icon(
+                                _getPermissionIcon(permission),
+                                color: Color(0xFF667EEA),
+                                size: 20.sp,
+                              ),
+                              SizedBox(width: 10.w),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      permission,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      _getPermissionDescription(permission),
+                                      style: TextStyle(
+                                        fontSize: 12.sp,
+                                        color: Colors.grey[500],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text('Not Now', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF667EEA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Enable Permissions',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
+  // Get permission icon
+  IconData _getPermissionIcon(String permission) {
+    switch (permission) {
+      case 'Camera':
+        return Icons.camera_alt;
+      case 'Gallery/Photos':
+        return Icons.photo_library;
+      case 'Notifications':
+        return Icons.notifications;
+      case 'Location':
+        return Icons.location_on;
+      default:
+        return Icons.security;
+    }
+  }
+
+  // Get permission description
+  String _getPermissionDescription(String permission) {
+    switch (permission) {
+      case 'Camera':
+        return 'Take photos of street lights';
+      case 'Gallery/Photos':
+        return 'Select images from your gallery';
+      case 'Notifications':
+        return 'Receive important updates and alerts';
+      case 'Location':
+        return 'Find and mark street light locations';
+      default:
+        return 'Required for app functionality';
+    }
+  }
+
+  // Show settings dialog for denied permissions
+  void _showPermissionSettingsDialog(List<String> deniedPermissions) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.r),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.settings, color: Colors.orange, size: 28.sp),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'Enable in Settings',
+                  style: TextStyle(
+                    fontSize: 18.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Please enable these permissions in Settings:',
+                style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 15.h),
+              ...deniedPermissions
+                  .map(
+                    (permission) => Container(
+                      margin: EdgeInsets.symmetric(vertical: 4.h),
+                      padding: EdgeInsets.all(12.w),
+                      decoration: BoxDecoration(
+                        color: Colors.orange.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8.r),
+                        border: Border.all(
+                          color: Colors.orange.withOpacity(0.3),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Icon(
+                            _getPermissionIcon(permission),
+                            color: Colors.orange,
+                            size: 20.sp,
+                          ),
+                          SizedBox(width: 10.w),
+                          Text(
+                            permission,
+                            style: TextStyle(fontWeight: FontWeight.w600),
+                          ),
+                        ],
+                      ),
+                    ),
+                  )
+                  .toList(),
+              SizedBox(height: 15.h),
+              Text(
+                '1. Tap "Open Settings"\n2. Find "Permissions"\n3. Enable the required permissions\n4. Return to the app',
+                style: TextStyle(fontSize: 12.sp, color: Colors.grey[500]),
+              ),
+            ],
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+              ),
+              child: Text(
+                'Open Settings',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Show error and open settings
+  void _showErrorAndOpenSettings() {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.r),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.error, color: Colors.red),
+              SizedBox(width: 10.w),
+              Text('Permission Error'),
+            ],
+          ),
+          content: Text(
+            'There was an error requesting permissions. Please enable them manually in Settings.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              child: Text('Open Settings'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   @override
@@ -65,6 +492,590 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
     _longitudeController.dispose();
     _powerConsumptionController.dispose();
     super.dispose();
+  }
+
+  // Image upload methods
+  // Manual camera permission check for debugging
+  Future<void> _checkCameraPermissionManually() async {
+    print('=== MANUAL CAMERA PERMISSION CHECK ===');
+
+    try {
+      // Check various camera permission states
+      bool isGranted = await Permission.camera.isGranted;
+      bool isDenied = await Permission.camera.isDenied;
+      bool isPermanentlyDenied = await Permission.camera.isPermanentlyDenied;
+      bool isRestricted = await Permission.camera.isRestricted;
+      PermissionStatus status = await Permission.camera.status;
+
+      print('Camera isGranted: $isGranted');
+      print('Camera isDenied: $isDenied');
+      print('Camera isPermanentlyDenied: $isPermanentlyDenied');
+      print('Camera isRestricted: $isRestricted');
+      print('Camera status: $status');
+
+      if (mounted) {
+        String message;
+        Color backgroundColor;
+
+        if (isGranted) {
+          message = 'Camera permission is GRANTED ✅';
+          backgroundColor = Colors.green;
+        } else if (isPermanentlyDenied) {
+          message = 'Camera permission PERMANENTLY DENIED ❌ - Open Settings';
+          backgroundColor = Colors.red;
+        } else if (isDenied) {
+          message = 'Camera permission DENIED 🚫 - Will request again';
+          backgroundColor = Colors.orange;
+        } else {
+          message = 'Camera permission status: $status';
+          backgroundColor = Colors.blue;
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(message),
+            backgroundColor: backgroundColor,
+            duration: Duration(seconds: 4),
+            action: SnackBarAction(
+              label: 'Settings',
+              textColor: Colors.white,
+              onPressed: () => openAppSettings(),
+            ),
+          ),
+        );
+
+        // If not granted, try to request
+        if (!isGranted && !isPermanentlyDenied) {
+          print('Attempting to request camera permission...');
+          PermissionStatus result = await Permission.camera.request();
+          print('Camera request result: $result');
+
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Camera permission request result: $result'),
+              backgroundColor: result.isGranted ? Colors.green : Colors.red,
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      print('Error checking camera permission: $e');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error checking camera permission: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    }
+  }
+
+  // Comprehensive permission checking methods
+  Future<bool> _requestStoragePermission() async {
+    if (Platform.isAndroid) {
+      // Check if already granted
+      if (await Permission.storage.isGranted ||
+          await Permission.photos.isGranted) {
+        return true;
+      }
+
+      // Show specific dialog for gallery access
+      bool shouldRequest = await _showSpecificPermissionDialog(
+        'Gallery Access Required',
+        'To select photos from your gallery, we need storage permission.',
+        Icons.photo_library,
+      );
+
+      if (!shouldRequest) return false;
+
+      // Request permissions
+      final storageResult = await Permission.storage.request();
+      final photosResult = await Permission.photos.request();
+
+      bool granted =
+          storageResult == PermissionStatus.granted ||
+          photosResult == PermissionStatus.granted;
+
+      // If denied, show specific guidance
+      if (!granted && mounted) {
+        _showSpecificSettingsGuidance(
+          'Gallery/Photos',
+          'To select images from your gallery',
+        );
+      }
+
+      return granted;
+    }
+    return true; // iOS handles permissions automatically
+  }
+
+  Future<bool> _requestCameraPermission() async {
+    // Check if already granted
+    if (await Permission.camera.isGranted) {
+      return true;
+    }
+
+    // Show specific dialog for camera access
+    bool shouldRequest = await _showSpecificPermissionDialog(
+      'Camera Access Required',
+      'To take photos of street lights, we need camera permission.',
+      Icons.camera_alt,
+    );
+
+    if (!shouldRequest) return false;
+
+    // Request permission
+    final result = await Permission.camera.request();
+
+    // If denied, show specific guidance
+    if (result != PermissionStatus.granted && mounted) {
+      _showSpecificSettingsGuidance(
+        'Camera',
+        'To take photos of street lights',
+      );
+    }
+
+    return result == PermissionStatus.granted;
+  }
+
+  // Show specific permission dialog
+  Future<bool> _showSpecificPermissionDialog(
+    String title,
+    String message,
+    IconData icon,
+  ) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (BuildContext context) {
+            return AlertDialog(
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15.r),
+              ),
+              title: Row(
+                children: [
+                  Icon(icon, color: Color(0xFF667EEA), size: 28.sp),
+                  SizedBox(width: 10.w),
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    message,
+                    style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                  ),
+                  SizedBox(height: 15.h),
+                  Container(
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: Color(0xFF667EEA).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(8.r),
+                    ),
+                    child: Text(
+                      'Tap "Allow" in the next dialog to enable this feature.',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Color(0xFF667EEA),
+                        fontWeight: FontWeight.w500,
+                      ),
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  child: Text('Cancel', style: TextStyle(color: Colors.grey)),
+                ),
+                ElevatedButton(
+                  onPressed: () => Navigator.of(context).pop(true),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Color(0xFF667EEA),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10.r),
+                    ),
+                  ),
+                  child: Text(
+                    'Continue',
+                    style: TextStyle(color: Colors.white),
+                  ),
+                ),
+              ],
+            );
+          },
+        ) ??
+        false;
+  }
+
+  // Show specific settings guidance
+  void _showSpecificSettingsGuidance(String permissionName, String purpose) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(15.r),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.settings, color: Colors.orange, size: 28.sp),
+              SizedBox(width: 10.w),
+              Expanded(
+                child: Text(
+                  'Enable $permissionName',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$purpose, please enable $permissionName permission in Settings.',
+                style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+              ),
+              SizedBox(height: 15.h),
+              Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8.r),
+                  border: Border.all(color: Colors.orange.withOpacity(0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Steps to enable:',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: Colors.orange,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      '1. Tap "Open Settings"\n2. Find "Permissions"\n3. Enable "$permissionName"\n4. Return to the app',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text('Maybe Later', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).pop();
+                openAppSettings();
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.orange,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10.r),
+                ),
+              ),
+              child: Text(
+                'Open Settings',
+                style: TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  Future<void> _pickImageFromGallery() async {
+    try {
+      // Request storage permission
+      if (!await _requestStoragePermission()) {
+        return; // Permission denied, settings will open automatically
+      }
+
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.gallery,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Image selected successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Save image path to shared preferences
+        await _saveImageToPreferences(pickedFile.path);
+
+        // Upload to Firebase Storage
+        await _uploadImageToFirebase();
+      }
+    } catch (e) {
+      print('Error picking image from gallery: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error accessing gallery. Opening settings...'),
+          backgroundColor: Colors.orange,
+        ),
+      );
+      // Open settings if there's any error
+      openAppSettings();
+    }
+  }
+
+  Future<void> _pickImageFromCamera() async {
+    try {
+      // Request camera permission
+      if (!await _requestCameraPermission()) {
+        return; // Permission denied, settings will open automatically
+      }
+
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1024,
+        maxHeight: 1024,
+        imageQuality: 80,
+      );
+
+      if (pickedFile != null) {
+        setState(() {
+          _selectedImage = File(pickedFile.path);
+        });
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Photo captured successfully!'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+
+        // Save image path to shared preferences
+        await _saveImageToPreferences(pickedFile.path);
+
+        // Upload to Firebase Storage
+        await _uploadImageToFirebase();
+      }
+    } catch (e) {
+      print('Error taking photo: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error taking photo: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  Future<void> _saveImageToPreferences(String imagePath) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('street_light_image_path', imagePath);
+      print('Image path saved to preferences: $imagePath');
+    } catch (e) {
+      print('Error saving image path to preferences: $e');
+    }
+  }
+
+  Future<void> _uploadImageToFirebase() async {
+    if (_selectedImage == null) return;
+
+    setState(() {
+      _isImageUploading = true;
+    });
+
+    try {
+      // Create a unique filename
+      final String fileName =
+          'street_light_${DateTime.now().millisecondsSinceEpoch}_${path.basename(_selectedImage!.path)}';
+
+      // Create reference to Firebase Storage
+      final Reference storageRef = FirebaseStorage.instance
+          .ref()
+          .child('street_lights')
+          .child(fileName);
+
+      // Upload the file
+      final UploadTask uploadTask = storageRef.putFile(_selectedImage!);
+
+      // Wait for completion
+      final TaskSnapshot taskSnapshot = await uploadTask;
+
+      // Get download URL
+      final String downloadUrl = await taskSnapshot.ref.getDownloadURL();
+
+      setState(() {
+        _uploadedImageUrl = downloadUrl;
+        _isImageUploading = false;
+      });
+
+      print('Image uploaded successfully: $downloadUrl');
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white, size: 20.sp),
+              SizedBox(width: 8.w),
+              Text('Image uploaded successfully!'),
+            ],
+          ),
+          backgroundColor: const Color(0xFF10B981),
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+    } catch (e) {
+      setState(() {
+        _isImageUploading = false;
+      });
+
+      print('Error uploading image: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Error uploading image: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
+  void _showImagePickerDialog() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (BuildContext context) {
+        return Container(
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.only(
+              topLeft: Radius.circular(20.r),
+              topRight: Radius.circular(20.r),
+            ),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 40.w,
+                height: 4.h,
+                margin: EdgeInsets.only(top: 12.h),
+                decoration: BoxDecoration(
+                  color: Colors.grey[300],
+                  borderRadius: BorderRadius.circular(2.r),
+                ),
+              ),
+              Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  children: [
+                    Text(
+                      'Select Image',
+                      style: TextStyle(
+                        fontSize: 18.sp,
+                        fontWeight: FontWeight.bold,
+                        color: const Color(0xFF2D3748),
+                      ),
+                    ),
+                    SizedBox(height: 20.h),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: _buildImageOption(
+                            icon: Icons.photo_library,
+                            label: 'Gallery',
+                            onTap: () {
+                              Navigator.pop(context);
+                              _pickImageFromGallery();
+                            },
+                          ),
+                        ),
+                        SizedBox(width: 16.w),
+                        Expanded(
+                          child: _buildImageOption(
+                            icon: Icons.camera_alt,
+                            label: 'Camera',
+                            onTap: () {
+                              Navigator.pop(context);
+                              _pickImageFromCamera();
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    SizedBox(height: 20.h),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildImageOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.all(20.w),
+        decoration: BoxDecoration(
+          color: const Color(0xFFF8F9FA),
+          borderRadius: BorderRadius.circular(12.r),
+          border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, size: 32.sp, color: const Color(0xFF667EEA)),
+            SizedBox(height: 8.h),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w500,
+                color: const Color(0xFF2D3748),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   Future<void> _addStreetLight() async {
@@ -104,6 +1115,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
               double.tryParse(_powerConsumptionController.text.trim()) ?? 0.0,
           'isScheduled': _isScheduled,
           'schedule': {},
+          'imageUrl': _uploadedImageUrl, // Add image URL if uploaded
           'createdAt': FieldValue.serverTimestamp(),
           'lastUpdated': FieldValue.serverTimestamp(),
           'createdBy': user.uid,
@@ -353,45 +1365,136 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                       children: [
                         SizedBox(height: 20.h),
 
-                        // Street Light Icon Animation
-                        Container(
-                              width: 120.w,
-                              height: 120.h,
-                              decoration: BoxDecoration(
-                                gradient: const LinearGradient(
-                                  begin: Alignment.topLeft,
-                                  end: Alignment.bottomRight,
-                                  colors: [
-                                    Color(0xFF667EEA),
-                                    Color(0xFF764BA2),
-                                  ],
-                                ),
-                                borderRadius: BorderRadius.circular(60.r),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: const Color(
-                                      0xFF667EEA,
-                                    ).withOpacity(0.3),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, 10),
-                                  ),
-                                ],
+                        // Image Upload Section
+                        _buildSectionCard('Street Light Image', Icons.camera_alt, [
+                          Container(
+                            width: double.infinity,
+                            decoration: BoxDecoration(
+                              color: Colors.grey[50],
+                              borderRadius: BorderRadius.circular(15.r),
+                              border: Border.all(
+                                color: Colors.grey[300]!,
+                                width: 2,
                               ),
-                              child: Icon(
-                                Icons.lightbulb,
-                                color: Colors.white,
-                                size: 60.sp,
-                              ),
-                            )
-                            .animate()
-                            .scale(duration: 800.ms, curve: Curves.elasticOut)
-                            .then()
-                            .shimmer(
-                              duration: 2000.ms,
-                              color: Colors.white.withOpacity(0.3),
                             ),
+                            child: _selectedImage != null
+                                ? Stack(
+                                    children: [
+                                      Container(
+                                        height: 200.h,
+                                        width: double.infinity,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            13.r,
+                                          ),
+                                          image: DecorationImage(
+                                            image: FileImage(_selectedImage!),
+                                            fit: BoxFit.cover,
+                                          ),
+                                        ),
+                                      ),
+                                      Positioned(
+                                        top: 8.h,
+                                        right: 8.w,
+                                        child: GestureDetector(
+                                          onTap: () {
+                                            setState(() {
+                                              _selectedImage = null;
+                                              _uploadedImageUrl = null;
+                                            });
+                                          },
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              color: Colors.red,
+                                              shape: BoxShape.circle,
+                                            ),
+                                            padding: EdgeInsets.all(5),
+                                            child: Icon(
+                                              Icons.close,
+                                              color: Colors.white,
+                                              size: 20.sp,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                      if (_isImageUploading)
+                                        Container(
+                                          height: 200.h,
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            borderRadius: BorderRadius.circular(
+                                              13.r,
+                                            ),
+                                            color: Colors.black.withOpacity(
+                                              0.5,
+                                            ),
+                                          ),
+                                          child: Center(
+                                            child: Column(
+                                              mainAxisAlignment:
+                                                  MainAxisAlignment.center,
+                                              children: [
+                                                CircularProgressIndicator(
+                                                  valueColor:
+                                                      AlwaysStoppedAnimation<
+                                                        Color
+                                                      >(Color(0xFF667EEA)),
+                                                ),
+                                                SizedBox(height: 10.h),
+                                                Text(
+                                                  'Uploading...',
+                                                  style: TextStyle(
+                                                    color: Colors.white,
+                                                    fontSize: 16.sp,
+                                                    fontWeight: FontWeight.w600,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ),
+                                    ],
+                                  )
+                                : GestureDetector(
+                                    onTap: _showImagePickerDialog,
+                                    child: Container(
+                                      height: 150.h,
+                                      child: Column(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.add_a_photo,
+                                            size: 50.sp,
+                                            color: Color(0xFF667EEA),
+                                          ),
+                                          SizedBox(height: 10.h),
+                                          Text(
+                                            'Add Street Light Photo',
+                                            style: TextStyle(
+                                              fontSize: 16.sp,
+                                              fontWeight: FontWeight.w600,
+                                              color: Color(0xFF667EEA),
+                                            ),
+                                          ),
+                                          SizedBox(height: 5.h),
+                                          Text(
+                                            'Tap to select from gallery or camera',
+                                            style: TextStyle(
+                                              fontSize: 12.sp,
+                                              color: Colors.grey[600],
+                                            ),
+                                          ),
+                                          SizedBox(height: 10.h),
+                                          
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ], 0),
 
-                        SizedBox(height: 30.h),
+                        SizedBox(height: 20.h),
 
                         // Basic Information Section
                         _buildSectionCard('Basic Information', Icons.info, [
@@ -442,7 +1545,6 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                             ),
                             SizedBox(height: 16.h),
 
-                           
                             Row(
                               children: [
                                 Expanded(
@@ -525,7 +1627,6 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                                     ),
                                   ),
                                 ),
-                                
                               ],
                             ),
                           ],
@@ -534,11 +1635,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
 
                         SizedBox(height: 20.h),
 
-                        
-
                         SizedBox(height: 20.h),
-
-                      
 
                         // Add Button
                         Container(

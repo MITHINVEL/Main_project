@@ -79,19 +79,93 @@ class StreetLightDetailScreen extends StatelessWidget {
               ),
               child: Row(
                 children: [
+                  // Street Light Image or Icon
                   Container(
-                    padding: EdgeInsets.all(12.w),
+                    width: 70.w,
+                    height: 70.h,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                      ),
                       borderRadius: BorderRadius.circular(12.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withOpacity(0.1),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
                     ),
-                    child: Icon(
-                      Icons.lightbulb,
-                      color: Colors.white,
-                      size: 28.sp,
-                    ),
+                    child:
+                        data['imageUrl'] != null &&
+                            (data['imageUrl'] as String).isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(12.r),
+                            child: Image.network(
+                              data['imageUrl'],
+                              fit: BoxFit.cover,
+                              width: 70.w,
+                              height: 70.h,
+                              loadingBuilder:
+                                  (context, child, loadingProgress) {
+                                    if (loadingProgress == null) return child;
+                                    return Container(
+                                      width: 70.w,
+                                      height: 70.h,
+                                      decoration: BoxDecoration(
+                                        gradient: const LinearGradient(
+                                          colors: [
+                                            Color(0xFF667EEA),
+                                            Color(0xFF764BA2),
+                                          ],
+                                        ),
+                                        borderRadius: BorderRadius.circular(
+                                          12.r,
+                                        ),
+                                      ),
+                                      child: Center(
+                                        child: CircularProgressIndicator(
+                                          valueColor:
+                                              AlwaysStoppedAnimation<Color>(
+                                                Colors.white,
+                                              ),
+                                          strokeWidth: 2,
+                                        ),
+                                      ),
+                                    );
+                                  },
+                              errorBuilder: (context, error, stackTrace) {
+                                return Container(
+                                  padding: EdgeInsets.all(12.w),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      colors: [
+                                        Color(0xFF667EEA),
+                                        Color(0xFF764BA2),
+                                      ],
+                                    ),
+                                    borderRadius: BorderRadius.circular(12.r),
+                                  ),
+                                  child: Icon(
+                                    Icons.lightbulb,
+                                    color: Colors.white,
+                                    size: 32.sp,
+                                  ),
+                                );
+                              },
+                            ),
+                          )
+                        : Container(
+                            padding: EdgeInsets.all(12.w),
+                            decoration: BoxDecoration(
+                              gradient: const LinearGradient(
+                                colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                              ),
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            child: Icon(
+                              Icons.lightbulb,
+                              color: Colors.white,
+                              size: 32.sp,
+                            ),
+                          ),
                   ),
                   SizedBox(width: 12.w),
                   Expanded(
@@ -152,45 +226,6 @@ class StreetLightDetailScreen extends StatelessWidget {
                   ),
                 ],
               ),
-            ),
-
-            SizedBox(height: 16.h),
-
-            // Info cards
-            Row(
-              children: [
-                Expanded(child: _infoCard('Status', status, Colors.orange)),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: _infoCard(
-                    'Brightness',
-                    brightness.isNotEmpty ? '$brightness%' : '—',
-                    Colors.blue,
-                  ),
-                ),
-              ],
-            ),
-
-            SizedBox(height: 12.h),
-
-            Row(
-              children: [
-                Expanded(
-                  child: _infoCard(
-                    'Power (W)',
-                    power.isNotEmpty ? power : '—',
-                    Colors.purple,
-                  ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: _infoCard(
-                    'Ward',
-                    ward.isNotEmpty ? ward : '—',
-                    Colors.teal,
-                  ),
-                ),
-              ],
             ),
 
             SizedBox(height: 16.h),
