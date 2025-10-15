@@ -107,20 +107,18 @@ class _DashboardScreenState extends State<DashboardScreen>
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
                 const StreetLightsListScreen(),
-            transitionsBuilder: (context, animation, secondaryAnimation, child) {
-              return FadeTransition(
-                opacity: animation,
-                child: SlideTransition(
-                  position: animation.drive(
-                    Tween(
-                      begin: const Offset(1.0, 0.0),
-                      end: Offset.zero,
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: animation.drive(
+                        Tween(begin: const Offset(1.0, 0.0), end: Offset.zero),
+                      ),
+                      child: child,
                     ),
-                  ),
-                  child: child,
-                ),
-              );
-            },
+                  );
+                },
             transitionDuration: const Duration(milliseconds: 600),
           ),
         );
@@ -184,12 +182,12 @@ class _DashboardScreenState extends State<DashboardScreen>
                 padding: EdgeInsets.symmetric(horizontal: 16.w),
                 child: Column(
                   children: [
-                    SizedBox(height: 30.h),                
+                    SizedBox(height: 30.h),
                     // Weather Section
                     const WeatherWidget(),
                     // Quick Actions
                     _buildQuickActions(),
-                    SizedBox(height: 50.h),                    
+                    SizedBox(height: 50.h),
                     // Space for bottom nav
                   ],
                 ),
@@ -391,8 +389,6 @@ class _DashboardScreenState extends State<DashboardScreen>
       ),
     );
   }
-
-  
 
   Widget _buildQuickActions() {
     final actions = [

@@ -34,19 +34,23 @@ class _WeatherWidgetState extends State<WeatherWidget> {
     });
 
     try {
-      double lat = 11.3410; // Default Erode coordinates  
+      double lat = 11.3410; // Default Erode coordinates
       double lon = 77.7172;
-      String locationName = 'Erode, Tamil Nadu'; // Default location
+      String locationName =
+          'Erode, Tamil Nadu'; // Default location - district, state format
 
       // Try to get current location
       final position = await LocationService.getCurrentLocation();
       if (position != null) {
         lat = position.latitude;
         lon = position.longitude;
-        
+
         // Get real address from coordinates using API
         try {
-          locationName = await LocationService.getAddressFromCoordinates(lat, lon);
+          locationName = await LocationService.getAddressFromCoordinates(
+            lat,
+            lon,
+          );
           print('Got real location: $locationName');
         } catch (e) {
           print('Error getting address: $e');
@@ -59,7 +63,6 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       // Fetch weather data (will use demo data)
       final weather = await WeatherService.getCurrentWeather(lat, lon);
       final uv = await WeatherService.getUVIndex(lat, lon);
-
 
       if (mounted) {
         setState(() {
@@ -192,10 +195,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         ],
       ),
       child: Container(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(20.r),
-          
-        ),
+        decoration: BoxDecoration(borderRadius: BorderRadius.circular(20.r)),
         child: Padding(
           padding: EdgeInsets.all(4.w),
           child: Column(
@@ -210,9 +210,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                       Text(
                         DateFormat('EEE, d MMM').format(DateTime.now()),
                         style: TextStyle(
-                          fontSize: 14.sp,
+                          fontSize: 15.sp,
                           color: Colors.white.withOpacity(0.85),
-                          fontWeight: FontWeight.w300,
+                          fontWeight: FontWeight.w500,
                         ),
                       ),
                       SizedBox(height: 6.h),
@@ -246,9 +246,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                   ),
                 ],
               ),
-      
+
               SizedBox(height: 20.h),
-      
+
               Row(
                 children: [
                   // Temperature
@@ -261,7 +261,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                     ),
                   ),
                   SizedBox(width: 16.w),
-      
+
                   // Weather description
                   Expanded(
                     child: Column(
@@ -280,8 +280,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                         Text(
                           'Feels like ${_currentWeather!.feelsLike.round()}°C',
                           style: TextStyle(
-                            fontSize: 14.sp,
-                            color: const Color.fromARGB(255, 254, 253, 253)
+                            fontSize: 15.sp,
+                            fontWeight: FontWeight.w500,
+                            color: const Color.fromARGB(255, 254, 253, 253),
                           ),
                         ),
                       ],
@@ -289,9 +290,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
                   ),
                 ],
               ),
-      
+
               SizedBox(height: 20.h),
-      
+
               // Weather details
               Row(
                 children: [
@@ -326,12 +327,12 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           Container(
             padding: EdgeInsets.all(8.w),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withOpacity(0.17),
               borderRadius: BorderRadius.circular(12.r),
             ),
             child: Icon(
-              icon, 
-              color: Colors.white.withOpacity(0.95),
+              icon,
+              color: const Color.fromARGB(255, 255, 255, 255).withOpacity(0.95),
               size: 18.sp,
             ),
           ),
@@ -339,9 +340,9 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           Text(
             label,
             style: TextStyle(
-              fontSize: 11.sp,
-              color: Colors.white.withOpacity(0.8),
-              fontWeight: FontWeight.w300,
+              fontSize: 12.sp,
+              color: Colors.white,
+              fontWeight: FontWeight.w400,
             ),
           ),
           SizedBox(height: 2.h),
@@ -358,5 +359,4 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       ),
     );
   }
-
 }

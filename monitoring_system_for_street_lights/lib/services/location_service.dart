@@ -65,30 +65,32 @@ class LocationService {
         Placemark place = placemarks[0];
 
         String address = '';
-        if (place.street != null && place.street!.isNotEmpty) {
-          address += place.street!;
+
+        // Start with district (subAdministrativeArea) - this is the main city/district
+        if (place.subAdministrativeArea != null &&
+            place.subAdministrativeArea!.isNotEmpty) {
+          address = place.subAdministrativeArea!;
         }
-        if (place.subLocality != null && place.subLocality!.isNotEmpty) {
-          address += address.isEmpty
-              ? place.subLocality!
-              : ', ${place.subLocality!}';
+        // If no district, use locality
+        else if (place.locality != null && place.locality!.isNotEmpty) {
+          address = place.locality!;
         }
-        if (place.locality != null && place.locality!.isNotEmpty) {
-          address += address.isEmpty ? place.locality! : ', ${place.locality!}';
-        }
-        if (place.administrativeArea != null &&
-            place.administrativeArea!.isNotEmpty) {
-          address += address.isEmpty
-              ? place.administrativeArea!
-              : ', ${place.administrativeArea!}';
-        }
-        if (place.postalCode != null && place.postalCode!.isNotEmpty) {
-          address += address.isEmpty
-              ? place.postalCode!
-              : ' - ${place.postalCode!}';
+        // Fallback to subLocality
+        else if (place.subLocality != null && place.subLocality!.isNotEmpty) {
+          address = place.subLocality!;
         }
 
-        return address.isEmpty ? 'Unknown Address' : address;
+        // Add state (administrativeArea)
+        if (place.administrativeArea != null &&
+            place.administrativeArea!.isNotEmpty) {
+          if (address.isNotEmpty) {
+            address += ', ${place.administrativeArea!}';
+          } else {
+            address = place.administrativeArea!;
+          }
+        }
+
+        return address.isEmpty ? 'Unknown Location' : address;
       }
 
       return 'Address not found';

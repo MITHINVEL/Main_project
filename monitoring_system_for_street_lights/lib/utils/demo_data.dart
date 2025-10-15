@@ -3,7 +3,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class StreetLightDemoData {
   static Future<void> createDemoData() async {
     final firestore = FirebaseFirestore.instance;
-    
+
     // Demo street lights data
     final demoLights = [
       {
@@ -26,7 +26,9 @@ class StreetLightDemoData {
         'status': 'Active',
         'autoSchedule': true,
         'notes': 'Bus stop area lighting',
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(Duration(days: 2))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(Duration(days: 2)),
+        ),
         'latitude': 13.0418,
         'longitude': 80.2341,
       },
@@ -38,7 +40,9 @@ class StreetLightDemoData {
         'status': 'Maintenance',
         'autoSchedule': false,
         'notes': 'Needs battery replacement',
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(Duration(days: 5))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(Duration(days: 5)),
+        ),
         'latitude': 13.0475,
         'longitude': 80.2824,
       },
@@ -50,7 +54,9 @@ class StreetLightDemoData {
         'status': 'Active',
         'autoSchedule': true,
         'notes': 'Recently installed high-efficiency light',
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(Duration(days: 1))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(Duration(days: 1)),
+        ),
         'latitude': 12.9756,
         'longitude': 80.2207,
       },
@@ -62,7 +68,9 @@ class StreetLightDemoData {
         'status': 'Inactive',
         'autoSchedule': false,
         'notes': 'Power supply issue - needs repair',
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(Duration(days: 7))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(Duration(days: 7)),
+        ),
         'latitude': 13.0067,
         'longitude': 80.2206,
       },
@@ -74,12 +82,14 @@ class StreetLightDemoData {
         'status': 'Active',
         'autoSchedule': true,
         'notes': 'Critical infrastructure lighting',
-        'createdAt': Timestamp.fromDate(DateTime.now().subtract(Duration(days: 3))),
+        'createdAt': Timestamp.fromDate(
+          DateTime.now().subtract(Duration(days: 3)),
+        ),
         'latitude': 13.0732,
         'longitude': 80.2609,
       },
     ];
-    
+
     try {
       // Add demo data to Firestore
       for (final light in demoLights) {
@@ -90,17 +100,17 @@ class StreetLightDemoData {
       print('Error creating demo data: $e');
     }
   }
-  
+
   static Future<void> clearDemoData() async {
     final firestore = FirebaseFirestore.instance;
-    
+
     try {
       final querySnapshot = await firestore.collection('street_lights').get();
-      
+
       for (final doc in querySnapshot.docs) {
         await doc.reference.delete();
       }
-      
+
       print('Demo street lights data cleared successfully!');
     } catch (e) {
       print('Error clearing demo data: $e');

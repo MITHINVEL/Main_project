@@ -14,7 +14,12 @@ class StreetLightsListScreen extends StatefulWidget {
 class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
   String _searchQuery = '';
   String _selectedFilter = 'All';
-  final List<String> _filterOptions = ['All', 'Active', 'Inactive', 'Maintenance'];
+  final List<String> _filterOptions = [
+    'All',
+    'Active',
+    'Inactive',
+    'Maintenance',
+  ];
 
   @override
   Widget build(BuildContext context) {
@@ -24,9 +29,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
       body: Column(
         children: [
           _buildSearchAndFilter(),
-          Expanded(
-            child: _buildStreetLightsList(),
-          ),
+          Expanded(child: _buildStreetLightsList()),
         ],
       ),
       floatingActionButton: _buildFloatingActionButton(),
@@ -52,11 +55,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
             // Filter options
             _showFilterBottomSheet();
           },
-          icon: Icon(
-            Icons.tune,
-            color: const Color(0xFF667EEA),
-            size: 24.sp,
-          ),
+          icon: Icon(Icons.tune, color: const Color(0xFF667EEA), size: 24.sp),
         ),
         SizedBox(width: 8.w),
       ],
@@ -106,9 +105,9 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
               ),
             ),
           ).animate().fadeIn(duration: 600.ms).slideY(begin: -0.3),
-          
+
           SizedBox(height: 16.h),
-          
+
           // Filter Chips
           SizedBox(
             height: 40.h,
@@ -118,7 +117,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
               itemBuilder: (context, index) {
                 final filter = _filterOptions[index];
                 final isSelected = _selectedFilter == filter;
-                
+
                 return Container(
                   margin: EdgeInsets.only(right: 12.w),
                   child: FilterChip(
@@ -127,7 +126,9 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                       style: TextStyle(
                         fontSize: 14.sp,
                         fontWeight: FontWeight.w500,
-                        color: isSelected ? Colors.white : const Color(0xFF667EEA),
+                        color: isSelected
+                            ? Colors.white
+                            : const Color(0xFF667EEA),
                       ),
                     ),
                     selected: isSelected,
@@ -180,7 +181,8 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           padding: EdgeInsets.symmetric(horizontal: 20.w),
           itemCount: filteredLights.length,
           itemBuilder: (context, index) {
-            final lightData = filteredLights[index].data() as Map<String, dynamic>;
+            final lightData =
+                filteredLights[index].data() as Map<String, dynamic>;
             return _buildStreetLightCard(lightData, index);
           },
         );
@@ -188,21 +190,25 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     );
   }
 
-  List<QueryDocumentSnapshot> _filterStreetLights(List<QueryDocumentSnapshot> lights) {
+  List<QueryDocumentSnapshot> _filterStreetLights(
+    List<QueryDocumentSnapshot> lights,
+  ) {
     return lights.where((light) {
       final data = light.data() as Map<String, dynamic>;
       final name = (data['name'] ?? '').toString().toLowerCase();
       final location = (data['location'] ?? '').toString().toLowerCase();
       final status = data['status'] ?? 'Active';
-      
+
       // Search filter
-      final matchesSearch = _searchQuery.isEmpty ||
+      final matchesSearch =
+          _searchQuery.isEmpty ||
           name.contains(_searchQuery.toLowerCase()) ||
           location.contains(_searchQuery.toLowerCase());
-      
+
       // Status filter
-      final matchesFilter = _selectedFilter == 'All' || status == _selectedFilter;
-      
+      final matchesFilter =
+          _selectedFilter == 'All' || status == _selectedFilter;
+
       return matchesSearch && matchesFilter;
     }).toList();
   }
@@ -211,193 +217,183 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     final status = lightData['status'] ?? 'Active';
     final statusColor = _getStatusColor(status);
     final statusIcon = _getStatusIcon(status);
-    
+
     return Container(
-      margin: EdgeInsets.only(bottom: 16.h),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 15,
-            offset: const Offset(0, 5),
+          margin: EdgeInsets.only(bottom: 16.h),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(20.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.05),
+                blurRadius: 15,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
-        ],
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => _showStreetLightDetails(lightData),
-          borderRadius: BorderRadius.circular(20.r),
-          child: Padding(
-            padding: EdgeInsets.all(20.w),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // Header Row
-                Row(
+          child: Material(
+            color: Colors.transparent,
+            child: InkWell(
+              onTap: () => _showStreetLightDetails(lightData),
+              borderRadius: BorderRadius.circular(20.r),
+              child: Padding(
+                padding: EdgeInsets.all(20.w),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Light Icon
-                    Container(
-                      width: 50.w,
-                      height: 50.h,
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF667EEA),
-                            const Color(0xFF764BA2),
-                          ],
+                    // Header Row
+                    Row(
+                      children: [
+                        // Light Icon
+                        Container(
+                          width: 50.w,
+                          height: 50.h,
+                          decoration: BoxDecoration(
+                            gradient: LinearGradient(
+                              colors: [
+                                const Color(0xFF667EEA),
+                                const Color(0xFF764BA2),
+                              ],
+                            ),
+                            borderRadius: BorderRadius.circular(15.r),
+                          ),
+                          child: Icon(
+                            Icons.lightbulb,
+                            color: Colors.white,
+                            size: 24.sp,
+                          ),
                         ),
-                        borderRadius: BorderRadius.circular(15.r),
-                      ),
-                      child: Icon(
-                        Icons.lightbulb,
-                        color: Colors.white,
-                        size: 24.sp,
-                      ),
-                    ),
-                    
-                    SizedBox(width: 16.w),
-                    
-                    // Light Info
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            lightData['name'] ?? 'Unknown Light',
-                            style: TextStyle(
-                              fontSize: 18.sp,
-                              fontWeight: FontWeight.bold,
-                              color: const Color(0xFF2D3748),
+
+                        SizedBox(width: 16.w),
+
+                        // Light Info
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                lightData['name'] ?? 'Unknown Light',
+                                style: TextStyle(
+                                  fontSize: 18.sp,
+                                  fontWeight: FontWeight.bold,
+                                  color: const Color(0xFF2D3748),
+                                ),
+                              ),
+                              SizedBox(height: 4.h),
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.location_on,
+                                    color: const Color(0xFF718096),
+                                    size: 14.sp,
+                                  ),
+                                  SizedBox(width: 4.w),
+                                  Expanded(
+                                    child: Text(
+                                      lightData['location'] ??
+                                          'Unknown Location',
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        color: const Color(0xFF718096),
+                                      ),
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+
+                        // Status Badge
+                        Container(
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 12.w,
+                            vertical: 6.h,
+                          ),
+                          decoration: BoxDecoration(
+                            color: statusColor.withOpacity(0.1),
+                            borderRadius: BorderRadius.circular(12.r),
+                            border: Border.all(
+                              color: statusColor.withOpacity(0.3),
                             ),
                           ),
-                          SizedBox(height: 4.h),
-                          Row(
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                Icons.location_on,
-                                color: const Color(0xFF718096),
-                                size: 14.sp,
-                              ),
+                              Icon(statusIcon, color: statusColor, size: 12.sp),
                               SizedBox(width: 4.w),
-                              Expanded(
-                                child: Text(
-                                  lightData['location'] ?? 'Unknown Location',
-                                  style: TextStyle(
-                                    fontSize: 14.sp,
-                                    color: const Color(0xFF718096),
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                              Text(
+                                status,
+                                style: TextStyle(
+                                  fontSize: 12.sp,
+                                  fontWeight: FontWeight.w600,
+                                  color: statusColor,
                                 ),
                               ),
                             ],
                           ),
-                        ],
-                      ),
+                        ),
+                      ],
                     ),
-                    
-                    // Status Badge
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12.w,
-                        vertical: 6.h,
-                      ),
-                      decoration: BoxDecoration(
-                        color: statusColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: statusColor.withOpacity(0.3),
+
+                    SizedBox(height: 16.h),
+
+                    // Details Row
+                    Row(
+                      children: [
+                        _buildDetailChip(
+                          Icons.tungsten,
+                          'Type',
+                          lightData['type'] ?? 'LED',
+                        ),
+                        SizedBox(width: 12.w),
+                        _buildDetailChip(
+                          Icons.brightness_6,
+                          'Brightness',
+                          '${lightData['brightness'] ?? 80}%',
+                        ),
+                        SizedBox(width: 12.w),
+                        _buildDetailChip(
+                          Icons.schedule,
+                          'Schedule',
+                          lightData['autoSchedule'] == true ? 'Auto' : 'Manual',
+                        ),
+                      ],
+                    ),
+
+                    if (lightData['createdAt'] != null) ...[
+                      SizedBox(height: 12.h),
+                      Text(
+                        'Added ${_formatDate(lightData['createdAt'])}',
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: const Color(0xFF718096),
                         ),
                       ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Icon(
-                            statusIcon,
-                            color: statusColor,
-                            size: 12.sp,
-                          ),
-                          SizedBox(width: 4.w),
-                          Text(
-                            status,
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              fontWeight: FontWeight.w600,
-                              color: statusColor,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
+                    ],
                   ],
                 ),
-                
-                SizedBox(height: 16.h),
-                
-                // Details Row
-                Row(
-                  children: [
-                    _buildDetailChip(
-                      Icons.tungsten,
-                      'Type',
-                      lightData['type'] ?? 'LED',
-                    ),
-                    SizedBox(width: 12.w),
-                    _buildDetailChip(
-                      Icons.brightness_6,
-                      'Brightness',
-                      '${lightData['brightness'] ?? 80}%',
-                    ),
-                    SizedBox(width: 12.w),
-                    _buildDetailChip(
-                      Icons.schedule,
-                      'Schedule',
-                      lightData['autoSchedule'] == true ? 'Auto' : 'Manual',
-                    ),
-                  ],
-                ),
-                
-                if (lightData['createdAt'] != null) ...[
-                  SizedBox(height: 12.h),
-                  Text(
-                    'Added ${_formatDate(lightData['createdAt'])}',
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      color: const Color(0xFF718096),
-                    ),
-                  ),
-                ],
-              ],
+              ),
             ),
           ),
-        ),
-      ),
-    ).animate().fadeIn(
-      duration: 600.ms,
-      delay: (index * 100).ms,
-    ).slideX(begin: 0.3);
+        )
+        .animate()
+        .fadeIn(duration: 600.ms, delay: (index * 100).ms)
+        .slideX(begin: 0.3);
   }
 
   Widget _buildDetailChip(IconData icon, String label, String value) {
     return Expanded(
       child: Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: 8.w,
-          vertical: 8.h,
-        ),
+        padding: EdgeInsets.symmetric(horizontal: 8.w, vertical: 8.h),
         decoration: BoxDecoration(
           color: const Color(0xFFF7FAFC),
           borderRadius: BorderRadius.circular(10.r),
         ),
         child: Column(
           children: [
-            Icon(
-              icon,
-              color: const Color(0xFF667EEA),
-              size: 16.sp,
-            ),
+            Icon(icon, color: const Color(0xFF667EEA), size: 16.sp),
             SizedBox(height: 4.h),
             Text(
               label,
@@ -427,17 +423,12 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           CircularProgressIndicator(
-            valueColor: AlwaysStoppedAnimation<Color>(
-              const Color(0xFF667EEA),
-            ),
+            valueColor: AlwaysStoppedAnimation<Color>(const Color(0xFF667EEA)),
           ),
           SizedBox(height: 16.h),
           Text(
             'Loading street lights...',
-            style: TextStyle(
-              fontSize: 16.sp,
-              color: const Color(0xFF718096),
-            ),
+            style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
           ),
         ],
       ),
@@ -466,10 +457,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           SizedBox(height: 8.h),
           Text(
             'Please try again later',
-            style: TextStyle(
-              fontSize: 14.sp,
-              color: const Color(0xFF718096),
-            ),
+            style: TextStyle(fontSize: 14.sp, color: const Color(0xFF718096)),
           ),
         ],
       ),
@@ -506,10 +494,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           SizedBox(height: 8.h),
           Text(
             'Start by adding your first street light',
-            style: TextStyle(
-              fontSize: 16.sp,
-              color: const Color(0xFF718096),
-            ),
+            style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
           ),
           SizedBox(height: 24.h),
           ElevatedButton.icon(
@@ -517,17 +502,11 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
               Navigator.pushNamed(context, '/add_street_light');
             },
             icon: Icon(Icons.add, size: 20.sp),
-            label: Text(
-              'Add Street Light',
-              style: TextStyle(fontSize: 16.sp),
-            ),
+            label: Text('Add Street Light', style: TextStyle(fontSize: 16.sp)),
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF667EEA),
               foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(
-                horizontal: 24.w,
-                vertical: 16.h,
-              ),
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(12.r),
               ),
@@ -544,15 +523,8 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
         Navigator.pushNamed(context, '/add_street_light');
       },
       backgroundColor: const Color(0xFF667EEA),
-      child: Icon(
-        Icons.add,
-        color: Colors.white,
-        size: 28.sp,
-      ),
-    ).animate().scale(
-      duration: 800.ms,
-      delay: 1000.ms,
-    );
+      child: Icon(Icons.add, color: Colors.white, size: 28.sp),
+    ).animate().scale(duration: 800.ms, delay: 1000.ms);
   }
 
   Color _getStatusColor(String status) {
@@ -583,7 +555,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
 
   String _formatDate(dynamic timestamp) {
     if (timestamp == null) return '';
-    
+
     try {
       DateTime date;
       if (timestamp is Timestamp) {
@@ -601,9 +573,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     showModalBottomSheet(
       context: context,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20.r),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       builder: (context) {
         return Container(
@@ -649,9 +619,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
       context: context,
       isScrollControlled: true,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(20.r),
-        ),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
       ),
       builder: (context) {
         return Container(
@@ -706,22 +674,35 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                   ),
                 ],
               ),
-              
+
               SizedBox(height: 24.h),
-              
+
               // Details
               Expanded(
                 child: SingleChildScrollView(
                   child: Column(
                     children: [
                       _buildDetailRow('Type', lightData['type'] ?? 'LED'),
-                      _buildDetailRow('Brightness', '${lightData['brightness'] ?? 80}%'),
-                      _buildDetailRow('Status', lightData['status'] ?? 'Active'),
-                      _buildDetailRow('Schedule', lightData['autoSchedule'] == true ? 'Auto' : 'Manual'),
-                      if (lightData['notes'] != null && lightData['notes'].toString().isNotEmpty)
+                      _buildDetailRow(
+                        'Brightness',
+                        '${lightData['brightness'] ?? 80}%',
+                      ),
+                      _buildDetailRow(
+                        'Status',
+                        lightData['status'] ?? 'Active',
+                      ),
+                      _buildDetailRow(
+                        'Schedule',
+                        lightData['autoSchedule'] == true ? 'Auto' : 'Manual',
+                      ),
+                      if (lightData['notes'] != null &&
+                          lightData['notes'].toString().isNotEmpty)
                         _buildDetailRow('Notes', lightData['notes'].toString()),
                       if (lightData['createdAt'] != null)
-                        _buildDetailRow('Added', _formatDate(lightData['createdAt'])),
+                        _buildDetailRow(
+                          'Added',
+                          _formatDate(lightData['createdAt']),
+                        ),
                     ],
                   ),
                 ),
@@ -756,10 +737,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           Expanded(
             child: Text(
               value,
-              style: TextStyle(
-                fontSize: 14.sp,
-                color: const Color(0xFF2D3748),
-              ),
+              style: TextStyle(fontSize: 14.sp, color: const Color(0xFF2D3748)),
             ),
           ),
         ],
