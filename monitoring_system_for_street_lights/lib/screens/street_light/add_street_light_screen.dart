@@ -419,26 +419,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                               },
                             ),
                             SizedBox(height: 16.h),
-                            Row(
-                              children: [
-                                Expanded(
-                                  child: _buildTextField(
-                                    controller: _areaController,
-                                    label: 'Area',
-                                    icon: Icons.map,
-                                  ),
-                                ),
-                                SizedBox(width: 16.w),
-                                Expanded(
-                                  child: _buildTextField(
-                                    controller: _wardController,
-                                    label: 'Ward',
-                                    icon: Icons.location_city,
-                                  ),
-                                ),
-                              ],
-                            ),
-                            SizedBox(height: 16.h),
+                           
                             Row(
                               children: [
                                 Expanded(
