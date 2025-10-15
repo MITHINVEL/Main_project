@@ -1,0 +1,90 @@
+{
+  "project_info": {
+    "project_number": "689629822827",
+    "project_id": "street-light-monitor-dec88",
+    "storage_bucket": "street-light-monitor-dec88.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689629822827:android:34ea5ce9868424b882162e",
+        "android_client_info": {
+          "package_name": "com.company.Street_Light_Monitor"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "689629822827-tdo5gvc9cies7bh3pl4ip5o618p2h1k4.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.company.Street_Light_Monitor",
+            "certificate_hash": "769a88d1bc9e42acd2862c78c1243fa5d7d43399"
+          }
+        },
+        {
+          "client_id": "689629822827-609o19bqa6deadgac001184asifkgvvu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCld2v0mntsQPfbLl1XKaRdKcilGUvwEzc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "689629822827-609o19bqa6deadgac001184asifkgvvu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "689629822827-819kssoovcboouk4sce820ioakg3b32t.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.monitoringSystemForStreetLights"
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:689629822827:android:d41090c6f081351882162e",
+        "android_client_info": {
+          "package_name": "com.example.monitoring_system_for_street_lights"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "689629822827-609o19bqa6deadgac001184asifkgvvu.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCld2v0mntsQPfbLl1XKaRdKcilGUvwEzc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "689629822827-609o19bqa6deadgac001184asifkgvvu.apps.googleusercontent.com",
+              "client_type": 3
+            },
+            {
+              "client_id": "689629822827-819kssoovcboouk4sce820ioakg3b32t.apps.googleusercontent.com",
+              "client_type": 2,
+              "ios_info": {
+                "bundle_id": "com.example.monitoringSystemForStreetLights"
+              }
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
