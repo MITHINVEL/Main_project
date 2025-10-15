@@ -4,6 +4,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../maps/location_picker_screen.dart';
+import '../maps/simple_map_test.dart';
+import '../maps/map_diagnostic_screen.dart';
 import '../../services/location_service.dart';
 
 class AddStreetLightScreen extends StatefulWidget {
@@ -107,6 +109,19 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
           'createdBy': user.uid,
           'createdByEmail': user.email,
           'isActive': true,
+          // Additional metadata for better tracking
+          'deviceInfo': {'platform': 'mobile', 'version': '1.0.0'},
+          'coordinates': {
+            'lat': double.tryParse(_latitudeController.text.trim()) ?? 0.0,
+            'lng': double.tryParse(_longitudeController.text.trim()) ?? 0.0,
+          },
+          'fullAddress': {
+            'street': _addressController.text.trim(),
+            'area': _areaController.text.trim(),
+            'ward': _wardController.text.trim(),
+            'formatted':
+                '${_addressController.text.trim()}, ${_areaController.text.trim()}',
+          },
         };
 
         print('Data prepared: ${streetLightData.toString()}');
@@ -232,6 +247,17 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
           _latitudeController.text = position.latitude.toString();
           _longitudeController.text = position.longitude.toString();
           _addressController.text = address;
+
+          // Try to extract area from address for Kerala locations
+          if (address.isNotEmpty) {
+            final addressParts = address.split(',');
+            if (addressParts.isNotEmpty) {
+              // Use the first part as area if not already filled
+              if (_areaController.text.isEmpty && addressParts.length > 0) {
+                _areaController.text = addressParts[0].trim();
+              }
+            }
+          }
         });
 
         ScaffoldMessenger.of(context).showSnackBar(
@@ -240,7 +266,11 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
               children: [
                 Icon(Icons.my_location, color: Colors.white, size: 20.sp),
                 SizedBox(width: 8.w),
-                Text('Current location added!'),
+                Expanded(
+                  child: Text(
+                    'Current location added! Please verify area and ward details.',
+                  ),
+                ),
               ],
             ),
             backgroundColor: const Color(0xFF10B981),
@@ -248,6 +278,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
             shape: RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(12.r),
             ),
+            duration: const Duration(seconds: 3),
           ),
         );
       }
@@ -378,12 +409,12 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                           SizedBox(height: 16.h),
                           _buildTextField(
                             controller: _phoneController,
-                            label: 'Contact Phone Number',
-                            icon: Icons.phone,
-                            keyboardType: TextInputType.phone,
+                            label: 'Street Light Number / ID',
+                            icon: Icons.tag,
+                            keyboardType: TextInputType.text,
                             validator: (value) {
                               if (value?.isEmpty ?? true) {
-                                return 'Please enter phone number';
+                                return 'Please enter street light number';
                               }
                               return null;
                             },
@@ -402,15 +433,6 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                               label: 'Street Address',
                               icon: Icons.home,
                               maxLines: 2,
-                              suffixIcon: IconButton(
-                                onPressed: _openLocationPicker,
-                                icon: Icon(
-                                  Icons.location_on,
-                                  color: const Color(0xFF667EEA),
-                                  size: 24.sp,
-                                ),
-                                tooltip: 'Pick from map',
-                              ),
                               validator: (value) {
                                 if (value?.isEmpty ?? true) {
                                   return 'Please enter street address';
@@ -419,6 +441,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                               },
                             ),
                             SizedBox(height: 16.h),
+
                            
                             Row(
                               children: [
@@ -441,45 +464,69 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                                 ),
                               ],
                             ),
-                            SizedBox(height: 16.h),
-                            // Current Location Button
-                            Container(
-                              width: double.infinity,
-                              height: 48.h,
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF667EEA).withOpacity(0.1),
-                                borderRadius: BorderRadius.circular(12.r),
-                                border: Border.all(
-                                  color: const Color(0xFF667EEA),
-                                  width: 1,
-                                ),
-                              ),
-                              child: Material(
-                                color: Colors.transparent,
-                                child: InkWell(
-                                  onTap: _getCurrentLocation,
-                                  borderRadius: BorderRadius.circular(12.r),
-                                  child: Row(
-                                    mainAxisAlignment: MainAxisAlignment.center,
-                                    children: [
-                                      Icon(
-                                        Icons.my_location,
-                                        color: const Color(0xFF667EEA),
-                                        size: 20.sp,
+                            SizedBox(height: 20.h),
+
+                            // Location action buttons
+                            Row(
+                              children: [
+                                // Current Location Button
+                                Expanded(
+                                  child: Container(
+                                    height: 48.h,
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF10B981),
+                                          Color(0xFF059669),
+                                        ],
                                       ),
-                                      SizedBox(width: 8.w),
-                                      Text(
-                                        'Use Current Location',
-                                        style: TextStyle(
-                                          fontSize: 14.sp,
-                                          fontWeight: FontWeight.w600,
-                                          color: const Color(0xFF667EEA),
+                                      borderRadius: BorderRadius.circular(12.r),
+                                      boxShadow: [
+                                        BoxShadow(
+                                          color: const Color(
+                                            0xFF10B981,
+                                          ).withOpacity(0.3),
+                                          blurRadius: 8,
+                                          offset: const Offset(0, 4),
+                                        ),
+                                      ],
+                                    ),
+                                    child: Material(
+                                      color: Colors.transparent,
+                                      child: InkWell(
+                                        onTap: _isLoading
+                                            ? null
+                                            : _getCurrentLocation,
+                                        borderRadius: BorderRadius.circular(
+                                          12.r,
+                                        ),
+                                        child: Row(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.my_location,
+                                              color: Colors.white,
+                                              size: 18.sp,
+                                            ),
+                                            SizedBox(width: 6.w),
+                                            Text(
+                                              'Current Location',
+                                              style: TextStyle(
+                                                fontSize: 13.sp,
+                                                fontWeight: FontWeight.w600,
+                                                color: Colors.white,
+                                              ),
+                                            ),
+                                          ],
                                         ),
                                       ),
-                                    ],
+                                    ),
                                   ),
                                 ),
-                              ),
+                                
+                              ],
                             ),
                           ],
                           1,
@@ -487,142 +534,11 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
 
                         SizedBox(height: 20.h),
 
-                        // Technical Specifications Section
-                        _buildSectionCard(
-                          'Technical Specifications',
-                          Icons.settings,
-                          [
-                            // Status Dropdown
-                            _buildDropdownField(
-                              label: 'Initial Status',
-                              value: _selectedStatus,
-                              icon: Icons.power_settings_new,
-                              items: const [
-                                DropdownMenuItem(
-                                  value: 'on',
-                                  child: Text('On'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'off',
-                                  child: Text('Off'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'maintenance',
-                                  child: Text('Maintenance'),
-                                ),
-                                DropdownMenuItem(
-                                  value: 'faulty',
-                                  child: Text('Faulty'),
-                                ),
-                              ],
-                              onChanged: (value) {
-                                setState(() => _selectedStatus = value!);
-                              },
-                            ),
-                            SizedBox(height: 16.h),
-
-                            // Brightness Slider
-                            _buildSliderField(
-                              label: 'Initial Brightness',
-                              value: _brightness,
-                              icon: Icons.brightness_6,
-                              onChanged: (value) {
-                                setState(() => _brightness = value.round());
-                              },
-                            ),
-                            SizedBox(height: 16.h),
-
-                            _buildTextField(
-                              controller: _powerConsumptionController,
-                              label: 'Power Consumption (Watts)',
-                              icon: Icons.electric_bolt,
-                              keyboardType: TextInputType.number,
-                            ),
-                            SizedBox(height: 16.h),
-
-                            // Scheduled Switch
-                            _buildSwitchField(
-                              label: 'Enable Scheduling',
-                              value: _isScheduled,
-                              icon: Icons.schedule,
-                              onChanged: (value) {
-                                setState(() => _isScheduled = value);
-                              },
-                            ),
-                          ],
-                          2,
-                        ),
+                        
 
                         SizedBox(height: 20.h),
 
-                        // Test Button (for debugging)
-                        Container(
-                          width: double.infinity,
-                          height: 48.h,
-                          margin: EdgeInsets.only(bottom: 20.h),
-                          decoration: BoxDecoration(
-                            color: Colors.orange,
-                            borderRadius: BorderRadius.circular(12.r),
-                          ),
-                          child: Material(
-                            color: Colors.transparent,
-                            child: InkWell(
-                              onTap: () async {
-                                try {
-                                  final user =
-                                      FirebaseAuth.instance.currentUser;
-                                  if (user == null) {
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(
-                                        content: Text('Not logged in'),
-                                      ),
-                                    );
-                                    return;
-                                  }
-
-                                  print('Testing Firestore connection...');
-                                  await FirebaseFirestore.instance
-                                      .collection('test')
-                                      .doc('test_doc')
-                                      .set({
-                                        'message': 'Hello from Flutter!',
-                                        'timestamp':
-                                            FieldValue.serverTimestamp(),
-                                        'user': user.email,
-                                      });
-
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    const SnackBar(
-                                      content: Text(
-                                        'Test successful! Check Firestore',
-                                      ),
-                                      backgroundColor: Colors.green,
-                                    ),
-                                  );
-                                } catch (e) {
-                                  print('Test failed: $e');
-                                  ScaffoldMessenger.of(context).showSnackBar(
-                                    SnackBar(
-                                      content: Text('Test failed: $e'),
-                                      backgroundColor: Colors.red,
-                                    ),
-                                  );
-                                }
-                              },
-                              borderRadius: BorderRadius.circular(12.r),
-                              child: Center(
-                                child: Text(
-                                  'Test Firestore Connection',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontWeight: FontWeight.bold,
-                                    fontSize: 14.sp,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
+                      
 
                         // Add Button
                         Container(

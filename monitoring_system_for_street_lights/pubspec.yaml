@@ -69,6 +69,8 @@ dependencies:
   
   # Icons
   iconsax: ^0.0.8
+  url_launcher: ^6.1.5
+  webview_flutter: ^4.0.0
 
 dev_dependencies:
   flutter_test:

@@ -3,6 +3,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:intl/intl.dart';
+import 'street_light_detail_screen.dart';
 
 class StreetLightsListScreen extends StatefulWidget {
   const StreetLightsListScreen({super.key});
@@ -234,7 +235,13 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () => _showStreetLightDetails(lightData),
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => StreetLightDetailScreen(data: lightData),
+                  ),
+                );
+              },
               borderRadius: BorderRadius.circular(20.r),
               child: Padding(
                 padding: EdgeInsets.all(20.w),
@@ -290,8 +297,19 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                                   SizedBox(width: 4.w),
                                   Expanded(
                                     child: Text(
-                                      lightData['location'] ??
-                                          'Unknown Location',
+                                      (lightData['location'] != null &&
+                                              (lightData['location'] as String)
+                                                  .trim()
+                                                  .isNotEmpty)
+                                          ? lightData['location']
+                                          : ((lightData['area'] != null &&
+                                                    (lightData['area']
+                                                            as String)
+                                                        .trim()
+                                                        .isNotEmpty)
+                                                ? lightData['area']
+                                                : (lightData['name'] ??
+                                                      'Unknown Location')),
                                       style: TextStyle(
                                         fontSize: 14.sp,
                                         color: const Color(0xFF718096),
@@ -614,134 +632,8 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     );
   }
 
-  void _showStreetLightDetails(Map<String, dynamic> lightData) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20.r)),
-      ),
-      builder: (context) {
-        return Container(
-          height: MediaQuery.of(context).size.height * 0.7,
-          padding: EdgeInsets.all(24.w),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Header
-              Row(
-                children: [
-                  Container(
-                    width: 50.w,
-                    height: 50.h,
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        colors: [
-                          const Color(0xFF667EEA),
-                          const Color(0xFF764BA2),
-                        ],
-                      ),
-                      borderRadius: BorderRadius.circular(15.r),
-                    ),
-                    child: Icon(
-                      Icons.lightbulb,
-                      color: Colors.white,
-                      size: 24.sp,
-                    ),
-                  ),
-                  SizedBox(width: 16.w),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          lightData['name'] ?? 'Unknown Light',
-                          style: TextStyle(
-                            fontSize: 20.sp,
-                            fontWeight: FontWeight.bold,
-                            color: const Color(0xFF2D3748),
-                          ),
-                        ),
-                        Text(
-                          lightData['location'] ?? 'Unknown Location',
-                          style: TextStyle(
-                            fontSize: 14.sp,
-                            color: const Color(0xFF718096),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+  // Previously showed details in a bottom sheet; replaced by full-screen
+  // StreetLightDetailScreen. The old bottom sheet implementation was removed.
 
-              SizedBox(height: 24.h),
-
-              // Details
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    children: [
-                      _buildDetailRow('Type', lightData['type'] ?? 'LED'),
-                      _buildDetailRow(
-                        'Brightness',
-                        '${lightData['brightness'] ?? 80}%',
-                      ),
-                      _buildDetailRow(
-                        'Status',
-                        lightData['status'] ?? 'Active',
-                      ),
-                      _buildDetailRow(
-                        'Schedule',
-                        lightData['autoSchedule'] == true ? 'Auto' : 'Manual',
-                      ),
-                      if (lightData['notes'] != null &&
-                          lightData['notes'].toString().isNotEmpty)
-                        _buildDetailRow('Notes', lightData['notes'].toString()),
-                      if (lightData['createdAt'] != null)
-                        _buildDetailRow(
-                          'Added',
-                          _formatDate(lightData['createdAt']),
-                        ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildDetailRow(String label, String value) {
-    return Container(
-      margin: EdgeInsets.only(bottom: 16.h),
-      padding: EdgeInsets.all(16.w),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF7FAFC),
-        borderRadius: BorderRadius.circular(12.r),
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            '$label:',
-            style: TextStyle(
-              fontSize: 14.sp,
-              fontWeight: FontWeight.w600,
-              color: const Color(0xFF4A5568),
-            ),
-          ),
-          SizedBox(width: 12.w),
-          Expanded(
-            child: Text(
-              value,
-              style: TextStyle(fontSize: 14.sp, color: const Color(0xFF2D3748)),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  // Detail row helper removed; details are now shown in full-screen detail page
 }
