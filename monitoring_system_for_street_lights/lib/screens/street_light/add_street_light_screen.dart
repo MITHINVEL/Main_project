@@ -28,6 +28,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
   // Form controllers
   final _nameController = TextEditingController();
   final _phoneController = TextEditingController();
+  final _streetLightNumberController = TextEditingController();
   final _addressController = TextEditingController();
   final _areaController = TextEditingController();
   final _wardController = TextEditingController();
@@ -483,6 +484,7 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
   void dispose() {
     _animationController.dispose();
     _backgroundController.dispose();
+    _streetLightNumberController.dispose();
     _nameController.dispose();
     _phoneController.dispose();
     _addressController.dispose();
@@ -1103,7 +1105,9 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
         final streetLightData = {
           'id': streetLightId,
           'name': _nameController.text.trim(),
+          // store GSM identifier and human-readable street light number
           'phoneNumber': _phoneController.text.trim(),
+          'streetLightNumber': _streetLightNumberController.text.trim(),
           'address': _addressController.text.trim(),
           'area': _areaController.text.trim(),
           'ward': _wardController.text.trim(),
@@ -1366,58 +1370,23 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                         SizedBox(height: 20.h),
 
                         // Image Upload Section
-                        _buildSectionCard('Street Light Image', Icons.camera_alt, [
-                          Container(
-                            width: double.infinity,
-                            decoration: BoxDecoration(
-                              color: Colors.grey[50],
-                              borderRadius: BorderRadius.circular(15.r),
-                              border: Border.all(
-                                color: Colors.grey[300]!,
-                                width: 2,
+                        _buildSectionCard(
+                          'Street Light Image',
+                          Icons.camera_alt,
+                          [
+                            Container(
+                              width: double.infinity,
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: BorderRadius.circular(15.r),
+                                border: Border.all(
+                                  color: Colors.grey[300]!,
+                                  width: 2,
+                                ),
                               ),
-                            ),
-                            child: _selectedImage != null
-                                ? Stack(
-                                    children: [
-                                      Container(
-                                        height: 200.h,
-                                        width: double.infinity,
-                                        decoration: BoxDecoration(
-                                          borderRadius: BorderRadius.circular(
-                                            13.r,
-                                          ),
-                                          image: DecorationImage(
-                                            image: FileImage(_selectedImage!),
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                      ),
-                                      Positioned(
-                                        top: 8.h,
-                                        right: 8.w,
-                                        child: GestureDetector(
-                                          onTap: () {
-                                            setState(() {
-                                              _selectedImage = null;
-                                              _uploadedImageUrl = null;
-                                            });
-                                          },
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              color: Colors.red,
-                                              shape: BoxShape.circle,
-                                            ),
-                                            padding: EdgeInsets.all(5),
-                                            child: Icon(
-                                              Icons.close,
-                                              color: Colors.white,
-                                              size: 20.sp,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      if (_isImageUploading)
+                              child: _selectedImage != null
+                                  ? Stack(
+                                      children: [
                                         Container(
                                           height: 200.h,
                                           width: double.infinity,
@@ -1425,74 +1394,113 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                                             borderRadius: BorderRadius.circular(
                                               13.r,
                                             ),
-                                            color: Colors.black.withOpacity(
-                                              0.5,
-                                            ),
-                                          ),
-                                          child: Center(
-                                            child: Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.center,
-                                              children: [
-                                                CircularProgressIndicator(
-                                                  valueColor:
-                                                      AlwaysStoppedAnimation<
-                                                        Color
-                                                      >(Color(0xFF667EEA)),
-                                                ),
-                                                SizedBox(height: 10.h),
-                                                Text(
-                                                  'Uploading...',
-                                                  style: TextStyle(
-                                                    color: Colors.white,
-                                                    fontSize: 16.sp,
-                                                    fontWeight: FontWeight.w600,
-                                                  ),
-                                                ),
-                                              ],
+                                            image: DecorationImage(
+                                              image: FileImage(_selectedImage!),
+                                              fit: BoxFit.cover,
                                             ),
                                           ),
                                         ),
-                                    ],
-                                  )
-                                : GestureDetector(
-                                    onTap: _showImagePickerDialog,
-                                    child: Container(
-                                      height: 150.h,
-                                      child: Column(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.center,
-                                        children: [
-                                          Icon(
-                                            Icons.add_a_photo,
-                                            size: 50.sp,
-                                            color: Color(0xFF667EEA),
+                                        Positioned(
+                                          top: 8.h,
+                                          right: 8.w,
+                                          child: GestureDetector(
+                                            onTap: () {
+                                              setState(() {
+                                                _selectedImage = null;
+                                                _uploadedImageUrl = null;
+                                              });
+                                            },
+                                            child: Container(
+                                              decoration: BoxDecoration(
+                                                color: Colors.red,
+                                                shape: BoxShape.circle,
+                                              ),
+                                              padding: EdgeInsets.all(5),
+                                              child: Icon(
+                                                Icons.close,
+                                                color: Colors.white,
+                                                size: 20.sp,
+                                              ),
+                                            ),
                                           ),
-                                          SizedBox(height: 10.h),
-                                          Text(
-                                            'Add Street Light Photo',
-                                            style: TextStyle(
-                                              fontSize: 16.sp,
-                                              fontWeight: FontWeight.w600,
+                                        ),
+                                        if (_isImageUploading)
+                                          Container(
+                                            height: 200.h,
+                                            width: double.infinity,
+                                            decoration: BoxDecoration(
+                                              borderRadius:
+                                                  BorderRadius.circular(13.r),
+                                              color: Colors.black.withOpacity(
+                                                0.5,
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Column(
+                                                mainAxisAlignment:
+                                                    MainAxisAlignment.center,
+                                                children: [
+                                                  CircularProgressIndicator(
+                                                    valueColor:
+                                                        AlwaysStoppedAnimation<
+                                                          Color
+                                                        >(Color(0xFF667EEA)),
+                                                  ),
+                                                  SizedBox(height: 10.h),
+                                                  Text(
+                                                    'Uploading...',
+                                                    style: TextStyle(
+                                                      color: Colors.white,
+                                                      fontSize: 16.sp,
+                                                      fontWeight:
+                                                          FontWeight.w600,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                    )
+                                  : GestureDetector(
+                                      onTap: _showImagePickerDialog,
+                                      child: Container(
+                                        height: 150.h,
+                                        child: Column(
+                                          mainAxisAlignment:
+                                              MainAxisAlignment.center,
+                                          children: [
+                                            Icon(
+                                              Icons.add_a_photo,
+                                              size: 50.sp,
                                               color: Color(0xFF667EEA),
                                             ),
-                                          ),
-                                          SizedBox(height: 5.h),
-                                          Text(
-                                            'Tap to select from gallery or camera',
-                                            style: TextStyle(
-                                              fontSize: 12.sp,
-                                              color: Colors.grey[600],
+                                            SizedBox(height: 10.h),
+                                            Text(
+                                              'Add Street Light Photo',
+                                              style: TextStyle(
+                                                fontSize: 16.sp,
+                                                fontWeight: FontWeight.w600,
+                                                color: Color(0xFF667EEA),
+                                              ),
                                             ),
-                                          ),
-                                          SizedBox(height: 10.h),
-                                          
-                                        ],
+                                            SizedBox(height: 5.h),
+                                            Text(
+                                              'Tap to select from gallery or camera',
+                                              style: TextStyle(
+                                                fontSize: 12.sp,
+                                                color: Colors.grey[600],
+                                              ),
+                                            ),
+                                            SizedBox(height: 10.h),
+                                          ],
+                                        ),
                                       ),
                                     ),
-                                  ),
-                          ),
-                        ], 0),
+                            ),
+                          ],
+                          0,
+                        ),
 
                         SizedBox(height: 20.h),
 
@@ -1510,10 +1518,25 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
                             },
                           ),
                           SizedBox(height: 16.h),
+                          // GSM identifier (modem SIM/ID)
                           _buildTextField(
                             controller: _phoneController,
-                            label: 'Street Light Number / ID',
-                            icon: Icons.tag,
+                            label: 'GSM Number / ID',
+                            icon: Icons.sim_card,
+                            keyboardType: TextInputType.text,
+                            validator: (value) {
+                              if (value?.isEmpty ?? true) {
+                                return 'Please enter GSM Number/ID';
+                              }
+                              return null;
+                            },
+                          ),
+                          SizedBox(height: 12.h),
+                          // Human-readable street light number (pole marking)
+                          _buildTextField(
+                            controller: _streetLightNumberController,
+                            label: 'Street Light Number',
+                            icon: Icons.confirmation_number,
                             keyboardType: TextInputType.text,
                             validator: (value) {
                               if (value?.isEmpty ?? true) {

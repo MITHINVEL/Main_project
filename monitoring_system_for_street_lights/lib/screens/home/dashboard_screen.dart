@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../street_light/add_street_light_screen.dart';
 import '../street_light/street_lights_list_screen.dart';
 import '../../widgets/weather_widget.dart';
+
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -124,17 +126,29 @@ class _DashboardScreenState extends State<DashboardScreen>
         );
         break;
       case 'Fault\nNotifications':
-        // Handle fault notifications tap
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Fault Notifications - Coming Soon!')),
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                NotificationsScreen(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: animation.drive(
+                        Tween(begin: const Offset(0.2, 0.0), end: Offset.zero),
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
+            transitionDuration: const Duration(milliseconds: 450),
+          ),
         );
         break;
 
       case 'History':
-        // Handle history tap
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('History - Coming Soon!')));
+     
         break;
       default:
         break;
@@ -338,51 +352,76 @@ class _DashboardScreenState extends State<DashboardScreen>
           ),
 
           // Notification Button
-          Container(
-            width: 45.w,
-            height: 45.h,
-            decoration: BoxDecoration(
-              color: Colors.white,
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
               borderRadius: BorderRadius.circular(15.r),
-              border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withOpacity(0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Stack(
-              children: [
-                Center(
-                  child: Icon(
-                    Icons.notifications_outlined,
-                    color: const Color(0xFF4A5568),
-                    size: 22.sp,
+              onTap: () {
+                Navigator.of(context).push(
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        NotificationsScreen(),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: child,
+                          );
+                        },
+                    transitionDuration: const Duration(milliseconds: 350),
                   ),
+                );
+              },
+              child: Container(
+                width: 45.w,
+                height: 45.h,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(15.r),
+                  border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.05),
+                      blurRadius: 10,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
                 ),
-                Positioned(
-                  top: 8.h,
-                  right: 8.w,
-                  child:
-                      Container(
-                            width: 8.w,
-                            height: 8.h,
-                            decoration: const BoxDecoration(
-                              color: Color(0xFFE53E3E),
-                              shape: BoxShape.circle,
-                            ),
-                          )
-                          .animate()
-                          .scale(duration: 1000.ms, curve: Curves.elasticOut)
-                          .then()
-                          .shimmer(
-                            duration: 2000.ms,
-                            color: Colors.red.withOpacity(0.5),
-                          ),
+                child: Stack(
+                  children: [
+                    Center(
+                      child: Icon(
+                        Icons.notifications_outlined,
+                        color: const Color(0xFF4A5568),
+                        size: 22.sp,
+                      ),
+                    ),
+                    Positioned(
+                      top: 8.h,
+                      right: 8.w,
+                      child:
+                          Container(
+                                width: 8.w,
+                                height: 8.h,
+                                decoration: const BoxDecoration(
+                                  color: Color(0xFFE53E3E),
+                                  shape: BoxShape.circle,
+                                ),
+                              )
+                              .animate()
+                              .scale(
+                                duration: 1000.ms,
+                                curve: Curves.elasticOut,
+                              )
+                              .then()
+                              .shimmer(
+                                duration: 2000.ms,
+                                color: Colors.red.withOpacity(0.5),
+                              ),
+                    ),
+                  ],
                 ),
-              ],
+              ),
             ),
           ).animate().scale(duration: 600.ms, delay: 400.ms),
         ],
@@ -575,6 +614,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
+        if (index == 2) {
+          Navigator.of(context).push(
+            PageRouteBuilder(
+              pageBuilder: (context, animation, secondaryAnimation) =>
+                  NotificationsScreen(),
+              transitionsBuilder:
+                  (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+              transitionDuration: const Duration(milliseconds: 350),
+            ),
+          );
+          return;
+        }
         setState(() {
           _currentIndex = index;
         });
