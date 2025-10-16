@@ -20,11 +20,11 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
-      appBar: showAppBar
-          ? AppBar(
+      appBar: 
+           AppBar(
               elevation: 0,
               centerTitle: true,
-              toolbarHeight: 72.h,
+              toolbarHeight: 62.h,
               backgroundColor: Colors.transparent,
               foregroundColor: Colors.white,
               title: Text(
@@ -35,13 +35,7 @@ class NotificationsScreen extends StatelessWidget {
                 onPressed: () => Navigator.of(context).pop(),
                 icon: const Icon(Icons.arrow_back),
               ),
-              actions: [
-                IconButton(
-                  onPressed: () {},
-                  icon: const Icon(Icons.tune, size: 22),
-                  tooltip: 'Filters',
-                ),
-              ],
+              
               flexibleSpace: Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -49,9 +43,7 @@ class NotificationsScreen extends StatelessWidget {
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
                   ),
-                  borderRadius: BorderRadius.vertical(
-                    bottom: Radius.circular(28.r),
-                  ),
+                 
                 ),
               ),
               shape: RoundedRectangleBorder(
@@ -59,8 +51,7 @@ class NotificationsScreen extends StatelessWidget {
                   bottom: Radius.circular(28.r),
                 ),
               ),
-            )
-          : null,
+         ),      
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
@@ -742,8 +733,8 @@ class NotificationsScreen extends StatelessWidget {
             Text(
               label,
               style: TextStyle(
-                fontSize: 12.sp,
-                color: Colors.white.withOpacity(0.7),
+                fontSize: 13.sp,
+                color: Colors.white.withOpacity(0.9),
               ),
             ),
             SizedBox(height: 6.h),
@@ -822,16 +813,16 @@ class NotificationsScreen extends StatelessWidget {
             children: [
               buildStat('Total alerts', total, Colors.white),
               Container(
-                width: 1.2,
+                width: 1.5,
                 height: 40.h,
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.6),
               ),
               SizedBox(width: 12.w),
               buildStat('Pending', pending, const Color(0xFFFBBF24)),
               Container(
-                width: 1.2,
+                width: 1.5,
                 height: 40.h,
-                color: Colors.white.withOpacity(0.2),
+                color: Colors.white.withOpacity(0.6),
               ),
               SizedBox(width: 12.w),
               buildStat('Fixed', fixed, const Color(0xFF34D399)),
