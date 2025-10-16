@@ -32,13 +32,7 @@ class NotificationHistoryScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back),
         ),
-        actions: [
-          IconButton(
-            onPressed: () => _showClearHistoryDialog(context),
-            icon: const Icon(Icons.clear_all, size: 22),
-            tooltip: 'Clear History',
-          ),
-        ],
+       
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -54,16 +48,13 @@ class NotificationHistoryScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          // Do not order on server-side to avoid needing indexes or missing-field errors.
-          // We'll sort client-side by fixedAt (fallback to timestamp) instead.
-          stream: FirebaseFirestore.instance
+         stream: FirebaseFirestore.instance
               .collection('notifications')
               .where('isFixed', isEqualTo: true)
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              print('Firestore History Error: ${snapshot.error}');
-              return Center(
+             return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -544,55 +535,7 @@ class NotificationHistoryScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _showClearHistoryDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange, size: 24.sp),
-              SizedBox(width: 8.w),
-              Text(
-                'Clear History',
-                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Text(
-            'Are you sure you want to clear all fixed notification history? This action cannot be undone.',
-            style: TextStyle(fontSize: 14.sp),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-              child: const Text('Clear All'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _clearHistory(context);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  
 
   Future<void> _clearHistory(BuildContext context) async {
     try {

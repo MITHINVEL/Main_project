@@ -7,9 +7,9 @@ import '../street_light/street_light_detail_screen.dart';
 import '../history/notification_history_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
-  final bool showAppBar;
-
   const NotificationsScreen({super.key, this.showAppBar = true});
+
+  final bool showAppBar;
 
   String _formatTimestamp(Timestamp? ts) {
     if (ts == null) return '';
@@ -205,10 +205,8 @@ class NotificationsScreen extends StatelessWidget {
 
                     return GestureDetector(
                       onTap: () {
-                        // Navigate to street light detail page if related lights exist
-                        if (related.isNotEmpty) {
-                          // Fetch street light data and navigate
-                          FirebaseFirestore.instance
+                       if (related.isNotEmpty) {
+                         FirebaseFirestore.instance
                               .collection('street_lights')
                               .doc(related.first)
                               .get()
@@ -746,9 +744,7 @@ class NotificationsScreen extends StatelessWidget {
               },
         )));
           }
-      
-    
-  }
+}
 
   Future<void> _markNotificationAsFixed(
     String notificationId,
@@ -904,7 +900,7 @@ class NotificationsScreen extends StatelessWidget {
       padding: EdgeInsets.all(18.w),
       decoration: BoxDecoration(
         gradient: const LinearGradient(
-          colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+          colors: [Color(0xFF667EEA), Color.fromARGB(255, 168, 136, 200)],
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
         ),

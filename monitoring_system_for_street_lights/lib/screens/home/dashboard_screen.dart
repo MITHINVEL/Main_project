@@ -424,7 +424,7 @@ class _DashboardScreenState extends State<DashboardScreen>
         'title': 'Fault\nNotifications',
         'icon': Icons.notification_important,
         'color': const Color(0xFFE53E3E),
-        'count': '12',
+        'count': null,
       },
       {
         'title': 'Street Light\nData',
@@ -493,19 +493,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                       children: [
                         Stack(
                           children: [
-                            Container(
-                              padding: EdgeInsets.all(12.w),
-                              decoration: BoxDecoration(
-                                color: (action['color'] as Color).withOpacity(
-                                  0.1,
-                                ),
-                                borderRadius: BorderRadius.circular(15.r),
-                              ),
-                              child: Icon(
-                                action['icon'] as IconData,
-                                color: action['color'] as Color,
-                                size: 24.sp,
-                              ),
+                            Icon(
+                              action['icon'] as IconData,
+                              color: action['color'] as Color,
+                              size: 35.sp,
                             ),
                             if (action['count'] != null)
                               Positioned(

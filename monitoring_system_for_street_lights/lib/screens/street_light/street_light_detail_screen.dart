@@ -202,76 +202,7 @@ class StreetLightDetailScreen extends StatelessWidget {
 
             SizedBox(height: 16.h),
 
-            // Location block
-            Container(
-              width: double.infinity,
-              padding: EdgeInsets.all(16.w),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12.r),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withOpacity(0.03),
-                    blurRadius: 8,
-                  ),
-                ],
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      Icon(Icons.location_on, color: const Color(0xFF667EEA)),
-                      SizedBox(width: 8.w),
-                      Text(
-                        'Location',
-                        style: TextStyle(fontWeight: FontWeight.bold),
-                      ),
-                    ],
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    address,
-                    style: TextStyle(color: const Color(0xFF718096)),
-                  ),
-                  SizedBox(height: 8.h),
-                  Text(
-                    'Lat: ${lat.toStringAsFixed(6)}, Lng: ${lng.toStringAsFixed(6)}',
-                    style: TextStyle(
-                      fontFamily: 'monospace',
-                      color: const Color(0xFFA0AEC0),
-                    ),
-                  ),
-                  if (area.isNotEmpty || ward.isNotEmpty) ...[
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Area: $area ${ward.isNotEmpty ? '· Ward: $ward' : ''}',
-                      style: TextStyle(color: const Color(0xFF718096)),
-                    ),
-                  ],
-                  if (createdBy.isNotEmpty) ...[
-                    SizedBox(height: 8.h),
-                    Text(
-                      'Added by: $createdBy',
-                      style: TextStyle(
-                        color: const Color(0xFF718096),
-                        fontSize: 12.sp,
-                      ),
-                    ),
-                  ],
-                  if (createdAt.isNotEmpty) ...[
-                    SizedBox(height: 6.h),
-                    Text(
-                      'Added on: $createdAt',
-                      style: TextStyle(
-                        color: const Color(0xFF718096),
-                        fontSize: 12.sp,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
+           
 
             // Location Details Container
             SizedBox(height: 16.h),
@@ -481,16 +412,42 @@ class StreetLightDetailScreen extends StatelessWidget {
                                 : Colors.grey[600],
                             height: 1.3,
                           ),
-                        ),
+                        ),SizedBox(height: 6.h),
+                         Text(
+                    'Lat: ${lat.toStringAsFixed(6)}, Lng: ${lng.toStringAsFixed(6)}',
+                    style: TextStyle(
+                      fontFamily: 'monospace',
+                      color: Colors.grey[600],
+                    ),
+                  ),
                         if (area.isNotEmpty || ward.isNotEmpty) ...[
                           SizedBox(height: 6.h),
                           Text(
                             '${area.isNotEmpty ? 'Area: $area' : ''}${area.isNotEmpty && ward.isNotEmpty ? ' • ' : ''}${ward.isNotEmpty ? 'Ward: $ward' : ''}',
                             style: TextStyle(
-                              fontSize: 11.sp,
+                              fontSize: 14.sp,
                               color: Colors.grey[600],
                             ),
                           ),
+                           if (createdBy.isNotEmpty) ...[
+                    SizedBox(height: 8.h),
+                    Text(
+                      'Added by: $createdBy',
+                      style: TextStyle(
+                        color: const Color(0xFF718096),
+                        fontSize: 12.sp,
+                      ),
+                    ),
+                  ],
+                  if (createdAt.isNotEmpty) ...[
+                    SizedBox(height: 6.h),
+                    Text(
+                      'Added on: $createdAt',
+                      style: TextStyle(
+                        color: const Color(0xFF718096),
+                        fontSize: 12.sp,
+                      ),
+                    ),]
                         ],
                       ],
                     ),
