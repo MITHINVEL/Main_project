@@ -335,6 +335,7 @@ class NotificationsScreen extends StatelessWidget {
                                               await _markNotificationAsFixed(
                                                 doc.id,
                                                 context,
+                                                showSnackBar: false,
                                               );
                                               Navigator.pop(context);
                                             },
@@ -554,7 +555,53 @@ class NotificationsScreen extends StatelessWidget {
                                               ),
                                       ),
                                       SizedBox(width: 8.w),
-                                      _buildStatusChip(isFixed),
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          _buildStatusChip(isFixed),
+                                          if (!isFixed) ...[
+                                            SizedBox(width: 4.w),
+                                            PopupMenuButton<String>(
+                                              padding: EdgeInsets.zero,
+                                              iconSize: 16.sp,
+                                              icon: Icon(
+                                                Icons.more_vert,
+                                                color: Colors.grey[600],
+                                                size: 16.sp,
+                                              ),
+                                              onSelected: (value) {
+                                                if (value == 'mark_fixed') {
+                                                  _markNotificationAsFixed(
+                                                    doc.id,
+                                                    context,
+                                                  );
+                                                }
+                                              },
+                                              itemBuilder: (context) => [
+                                                PopupMenuItem(
+                                                  value: 'mark_fixed',
+                                                  child: Row(
+                                                    mainAxisSize:
+                                                        MainAxisSize.min,
+                                                    children: [
+                                                      Icon(
+                                                        Icons
+                                                            .check_circle_outline,
+                                                        color: Colors.green,
+                                                        size: 16.sp,
+                                                      ),
+                                                      SizedBox(width: 8.w),
+                                                      const Text(
+                                                        'Mark as Fixed',
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ],
+                                      ),
                                     ],
                                   ),
                                   SizedBox(height: 8.h),
@@ -636,29 +683,53 @@ class NotificationsScreen extends StatelessWidget {
 
   Future<void> _markNotificationAsFixed(
     String notificationId,
-    BuildContext context,
-  ) async {
+    BuildContext context, {
+    bool showSnackBar = true,
+  }) async {
     try {
       await FirebaseFirestore.instance
           .collection('notifications')
           .doc(notificationId)
           .update({'isFixed': true, 'fixedAt': FieldValue.serverTimestamp()});
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Notification marked as fixed'),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (showSnackBar && context.mounted) {
+        // Clear any existing snackbars first
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Notification marked as fixed'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Error marking notification as fixed'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-        ),
-      );
+      if (showSnackBar && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Error marking notification as fixed'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
     }
   }
 
