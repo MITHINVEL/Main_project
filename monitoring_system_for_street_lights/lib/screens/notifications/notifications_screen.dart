@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import '../street_light/street_light_detail_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   final bool showAppBar;
@@ -129,241 +130,272 @@ class NotificationsScreen extends StatelessWidget {
 
                 return GestureDetector(
                       onTap: () {
-                        showModalBottomSheet(
-                          context: context,
-                          backgroundColor: Colors.transparent,
-                          builder: (_) {
-                            return Container(
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.vertical(
-                                  top: Radius.circular(24.r),
-                                ),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.08),
-                                    blurRadius: 20,
-                                    offset: const Offset(0, -6),
+                        // Navigate to street light detail page if related lights exist
+                        if (related.isNotEmpty) {
+                          // Fetch street light data and navigate
+                          FirebaseFirestore.instance
+                              .collection('street_lights')
+                              .doc(related.first)
+                              .get()
+                              .then((docSnapshot) {
+                                if (docSnapshot.exists) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) =>
+                                          StreetLightDetailScreen(
+                                            data: docSnapshot.data()!,
+                                          ),
+                                    ),
+                                  );
+                                }
+                              });
+                        } else {
+                          // Show bottom sheet if no related lights
+                          showModalBottomSheet(
+                            context: context,
+                            backgroundColor: Colors.transparent,
+                            builder: (_) {
+                              return Container(
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.vertical(
+                                    top: Radius.circular(24.r),
                                   ),
-                                ],
-                              ),
-                              child: Padding(
-                                padding: EdgeInsets.fromLTRB(
-                                  20.w,
-                                  20.h,
-                                  20.w,
-                                  28.h,
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: Colors.black.withOpacity(0.08),
+                                      blurRadius: 20,
+                                      offset: const Offset(0, -6),
+                                    ),
+                                  ],
                                 ),
-                                child: Column(
-                                  mainAxisSize: MainAxisSize.min,
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
+                                child: Padding(
+                                  padding: EdgeInsets.fromLTRB(
+                                    20.w,
+                                    20.h,
+                                    20.w,
+                                    28.h,
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: [
+                                          Container(
+                                            width: 40.w,
+                                            height: 40.w,
+                                            decoration: BoxDecoration(
+                                              color: const Color(
+                                                0xFF667EEA,
+                                              ).withOpacity(0.12),
+                                              borderRadius:
+                                                  BorderRadius.circular(12.r),
+                                            ),
+                                            child: const Icon(
+                                              Icons.message,
+                                              color: Color(0xFF667EEA),
+                                            ),
+                                          ),
+                                          SizedBox(width: 12.w),
+                                          Expanded(
+                                            child: Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                Text(
+                                                  from,
+                                                  style: TextStyle(
+                                                    fontWeight: FontWeight.w700,
+                                                    fontSize: 16.sp,
+                                                    color: const Color(
+                                                      0xFF1A202C,
+                                                    ),
+                                                  ),
+                                                ),
+                                                SizedBox(height: 4.h),
+                                                Text(
+                                                  _formatTimestamp(ts),
+                                                  style: TextStyle(
+                                                    fontSize: 12.sp,
+                                                    color: const Color(
+                                                      0xFF718096,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          _buildStatusChip(isFixed),
+                                        ],
+                                      ),
+                                      SizedBox(height: 16.h),
+                                      Text(
+                                        body,
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          height: 1.4,
+                                          color: const Color(0xFF2D3748),
+                                        ),
+                                      ),
+                                      if (related.isNotEmpty) ...[
+                                        SizedBox(height: 18.h),
+                                        Text(
+                                          'Related Lights',
+                                          style: TextStyle(
+                                            fontWeight: FontWeight.w600,
+                                            fontSize: 13.sp,
+                                          ),
+                                        ),
+                                        SizedBox(height: 10.h),
+                                        FutureBuilder<
+                                          List<
+                                            DocumentSnapshot<
+                                              Map<String, dynamic>
+                                            >
+                                          >
+                                        >(
+                                          future: Future.wait(
+                                            related
+                                                .map(
+                                                  (id) => FirebaseFirestore
+                                                      .instance
+                                                      .collection(
+                                                        'street_lights',
+                                                      )
+                                                      .doc(id)
+                                                      .get(),
+                                                )
+                                                .toList(),
+                                          ),
+                                          builder: (context, snap) {
+                                            if (snap.connectionState ==
+                                                ConnectionState.waiting) {
+                                              return Center(
+                                                child: SizedBox(
+                                                  height: 48.h,
+                                                  width: 48.h,
+                                                  child:
+                                                      CircularProgressIndicator(),
+                                                ),
+                                              );
+                                            }
+                                            if (!snap.hasData ||
+                                                snap.data!.isEmpty) {
+                                              return Text(
+                                                'No related street lights found',
+                                              );
+                                            }
+                                            final list = snap.data!;
+                                            return Column(
+                                              crossAxisAlignment:
+                                                  CrossAxisAlignment.start,
+                                              children: [
+                                                ...list.map((doc) {
+                                                  final d = doc.data() ?? {};
+                                                  final name =
+                                                      d['name'] ?? 'Unnamed';
+                                                  final slNumber =
+                                                      d['streetLightNumber'] ??
+                                                      d['number'] ??
+                                                      '';
+                                                  final gsm =
+                                                      d['gsmNumber'] ?? '';
+                                                  return ListTile(
+                                                    contentPadding:
+                                                        EdgeInsets.zero,
+                                                    leading: Icon(
+                                                      Icons.lightbulb,
+                                                      color: const Color(
+                                                        0xFF667EEA,
+                                                      ),
+                                                    ),
+                                                    title: Text(
+                                                      name.toString(),
+                                                    ),
+                                                    subtitle: Text(
+                                                      'Pole: $slNumber\nGSM: $gsm',
+                                                    ),
+                                                    isThreeLine: true,
+                                                  );
+                                                }).toList(),
+                                              ],
+                                            );
+                                          },
+                                        ),
+                                      ],
+                                      SizedBox(height: 24.h),
+                                      if (!isFixed)
+                                        SizedBox(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () async {
+                                              await _markNotificationAsFixed(
+                                                doc.id,
+                                                context,
+                                              );
+                                              Navigator.pop(context);
+                                            },
+                                            icon: const Icon(
+                                              Icons.check_circle_outline,
+                                            ),
+                                            label: const Text('Mark as Fixed'),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: const Color(
+                                                0xFF667EEA,
+                                              ),
+                                              foregroundColor: Colors.white,
+                                              padding: EdgeInsets.symmetric(
+                                                vertical: 14.h,
+                                              ),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius:
+                                                    BorderRadius.circular(14.r),
+                                              ),
+                                            ),
+                                          ),
+                                        )
+                                      else
                                         Container(
-                                          width: 40.w,
-                                          height: 40.w,
+                                          padding: EdgeInsets.symmetric(
+                                            vertical: 10.h,
+                                            horizontal: 12.w,
+                                          ),
                                           decoration: BoxDecoration(
-                                            color: const Color(
-                                              0xFF667EEA,
-                                            ).withOpacity(0.12),
+                                            color: const Color(0xFFDEF7EC),
                                             borderRadius: BorderRadius.circular(
                                               12.r,
                                             ),
                                           ),
-                                          child: const Icon(
-                                            Icons.message,
-                                            color: Color(0xFF667EEA),
-                                          ),
-                                        ),
-                                        SizedBox(width: 12.w),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
                                             children: [
-                                              Text(
-                                                from,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 16.sp,
-                                                  color: const Color(
-                                                    0xFF1A202C,
-                                                  ),
-                                                ),
+                                              const Icon(
+                                                Icons.verified,
+                                                color: Color(0xFF047857),
                                               ),
-                                              SizedBox(height: 4.h),
+                                              SizedBox(width: 8.w),
                                               Text(
-                                                _formatTimestamp(ts),
+                                                'Fixed on site',
                                                 style: TextStyle(
-                                                  fontSize: 12.sp,
                                                   color: const Color(
-                                                    0xFF718096,
+                                                    0xFF047857,
                                                   ),
+                                                  fontWeight: FontWeight.w600,
                                                 ),
                                               ),
                                             ],
                                           ),
                                         ),
-                                        _buildStatusChip(isFixed),
-                                      ],
-                                    ),
-                                    SizedBox(height: 16.h),
-                                    Text(
-                                      body,
-                                      style: TextStyle(
-                                        fontSize: 14.sp,
-                                        height: 1.4,
-                                        color: const Color(0xFF2D3748),
-                                      ),
-                                    ),
-                                    if (related.isNotEmpty) ...[
-                                      SizedBox(height: 18.h),
-                                      Text(
-                                        'Related Lights',
-                                        style: TextStyle(
-                                          fontWeight: FontWeight.w600,
-                                          fontSize: 13.sp,
-                                        ),
-                                      ),
-                                      SizedBox(height: 10.h),
-                                      FutureBuilder<
-                                        List<
-                                          DocumentSnapshot<Map<String, dynamic>>
-                                        >
-                                      >(
-                                        future: Future.wait(
-                                          related
-                                              .map(
-                                                (id) => FirebaseFirestore
-                                                    .instance
-                                                    .collection('street_lights')
-                                                    .doc(id)
-                                                    .get(),
-                                              )
-                                              .toList(),
-                                        ),
-                                        builder: (context, snap) {
-                                          if (snap.connectionState ==
-                                              ConnectionState.waiting) {
-                                            return Center(
-                                              child: SizedBox(
-                                                height: 48.h,
-                                                width: 48.h,
-                                                child:
-                                                    CircularProgressIndicator(),
-                                              ),
-                                            );
-                                          }
-                                          if (!snap.hasData ||
-                                              snap.data!.isEmpty) {
-                                            return Text(
-                                              'No related street lights found',
-                                            );
-                                          }
-                                          final list = snap.data!;
-                                          return Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              ...list.map((doc) {
-                                                final d = doc.data() ?? {};
-                                                final name =
-                                                    d['name'] ?? 'Unnamed';
-                                                final slNumber =
-                                                    d['streetLightNumber'] ??
-                                                    d['number'] ??
-                                                    '';
-                                                final gsm =
-                                                    d['gsmNumber'] ?? '';
-                                                return ListTile(
-                                                  contentPadding:
-                                                      EdgeInsets.zero,
-                                                  leading: Icon(
-                                                    Icons.lightbulb,
-                                                    color: const Color(
-                                                      0xFF667EEA,
-                                                    ),
-                                                  ),
-                                                  title: Text(name.toString()),
-                                                  subtitle: Text(
-                                                    'Pole: $slNumber\nGSM: $gsm',
-                                                  ),
-                                                  isThreeLine: true,
-                                                );
-                                              }).toList(),
-                                            ],
-                                          );
-                                        },
-                                      ),
                                     ],
-                                    SizedBox(height: 24.h),
-                                    if (!isFixed)
-                                      SizedBox(
-                                        width: double.infinity,
-                                        child: ElevatedButton.icon(
-                                          onPressed: () async {
-                                            await _markNotificationAsFixed(
-                                              doc.id,
-                                              context,
-                                            );
-                                            Navigator.pop(context);
-                                          },
-                                          icon: const Icon(
-                                            Icons.check_circle_outline,
-                                          ),
-                                          label: const Text('Mark as Fixed'),
-                                          style: ElevatedButton.styleFrom(
-                                            backgroundColor: const Color(
-                                              0xFF667EEA,
-                                            ),
-                                            foregroundColor: Colors.white,
-                                            padding: EdgeInsets.symmetric(
-                                              vertical: 14.h,
-                                            ),
-                                            shape: RoundedRectangleBorder(
-                                              borderRadius:
-                                                  BorderRadius.circular(14.r),
-                                            ),
-                                          ),
-                                        ),
-                                      )
-                                    else
-                                      Container(
-                                        padding: EdgeInsets.symmetric(
-                                          vertical: 10.h,
-                                          horizontal: 12.w,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: const Color(0xFFDEF7EC),
-                                          borderRadius: BorderRadius.circular(
-                                            12.r,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            const Icon(
-                                              Icons.verified,
-                                              color: Color(0xFF047857),
-                                            ),
-                                            SizedBox(width: 8.w),
-                                            Text(
-                                              'Fixed on site',
-                                              style: TextStyle(
-                                                color: const Color(0xFF047857),
-                                                fontWeight: FontWeight.w600,
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                  ],
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        );
+                              );
+                            },
+                          );
+                        }
                       },
                       child: Container(
                         padding: EdgeInsets.all(14.w),
@@ -410,16 +442,116 @@ class NotificationsScreen extends StatelessWidget {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
-                                        child: Text(
-                                          from,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w700,
-                                            fontSize: 14.sp,
-                                            color: const Color(0xFF1A202C),
-                                          ),
-                                        ),
+                                        child: related.isNotEmpty
+                                            ? FutureBuilder<
+                                                DocumentSnapshot<
+                                                  Map<String, dynamic>
+                                                >
+                                              >(
+                                                future: FirebaseFirestore
+                                                    .instance
+                                                    .collection('street_lights')
+                                                    .doc(related.first)
+                                                    .get(),
+                                                builder: (context, snapshot) {
+                                                  if (!snapshot.hasData) {
+                                                    return Text(
+                                                      from,
+                                                      maxLines: 1,
+                                                      overflow:
+                                                          TextOverflow.ellipsis,
+                                                      style: TextStyle(
+                                                        fontWeight:
+                                                            FontWeight.w700,
+                                                        fontSize: 14.sp,
+                                                        color: const Color(
+                                                          0xFF1A202C,
+                                                        ),
+                                                      ),
+                                                    );
+                                                  }
+
+                                                  final lightData = snapshot
+                                                      .data
+                                                      ?.data();
+                                                  final lightName =
+                                                      lightData?['name'] ??
+                                                      from;
+                                                  final location =
+                                                      lightData?['location'] ??
+                                                      lightData?['address'] ??
+                                                      '';
+
+                                                  return Column(
+                                                    crossAxisAlignment:
+                                                        CrossAxisAlignment
+                                                            .start,
+                                                    children: [
+                                                      Text(
+                                                        lightName,
+                                                        maxLines: 1,
+                                                        overflow: TextOverflow
+                                                            .ellipsis,
+                                                        style: TextStyle(
+                                                          fontWeight:
+                                                              FontWeight.w700,
+                                                          fontSize: 14.sp,
+                                                          color: const Color(
+                                                            0xFF1A202C,
+                                                          ),
+                                                        ),
+                                                      ),
+                                                      if (location
+                                                          .isNotEmpty) ...[
+                                                        SizedBox(height: 2.h),
+                                                        Row(
+                                                          children: [
+                                                            Icon(
+                                                              Icons.location_on,
+                                                              size: 12.sp,
+                                                              color:
+                                                                  const Color(
+                                                                    0xFF718096,
+                                                                  ),
+                                                            ),
+                                                            SizedBox(
+                                                              width: 2.w,
+                                                            ),
+                                                            Expanded(
+                                                              child: Text(
+                                                                location,
+                                                                maxLines: 1,
+                                                                overflow:
+                                                                    TextOverflow
+                                                                        .ellipsis,
+                                                                style: TextStyle(
+                                                                  fontSize:
+                                                                      12.sp,
+                                                                  color: const Color(
+                                                                    0xFF718096,
+                                                                  ),
+                                                                ),
+                                                              ),
+                                                            ),
+                                                          ],
+                                                        ),
+                                                      ],
+                                                    ],
+                                                  );
+                                                },
+                                              )
+                                            : Text(
+                                                from,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14.sp,
+                                                  color: const Color(
+                                                    0xFF1A202C,
+                                                  ),
+                                                ),
+                                              ),
                                       ),
                                       SizedBox(width: 8.w),
                                       _buildStatusChip(isFixed),
