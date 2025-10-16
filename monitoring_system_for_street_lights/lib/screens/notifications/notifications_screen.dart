@@ -35,15 +35,6 @@ class NotificationsScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back),
         ),
-        actions: [
-         
-          IconButton(
-            onPressed: () {},
-            icon: const Icon(Icons.tune, size: 22),
-            tooltip: 'Filters',
-          ),
-        ],
-
         flexibleSpace: Container(
           decoration: BoxDecoration(
             gradient: const LinearGradient(
