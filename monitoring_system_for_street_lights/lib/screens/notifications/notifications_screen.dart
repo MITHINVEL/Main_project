@@ -36,16 +36,7 @@ class NotificationsScreen extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
         ),
         actions: [
-          IconButton(
-            onPressed: () => _showDeleteAllDialog(context),
-            icon: const Icon(Icons.delete_sweep, size: 22),
-            tooltip: 'Delete All',
-          ),
-          IconButton(
-            onPressed: () => _navigateToHistory(context),
-            icon: const Icon(Icons.history, size: 22),
-            tooltip: 'History',
-          ),
+         
           IconButton(
             onPressed: () {},
             icon: const Icon(Icons.tune, size: 22),
@@ -820,56 +811,7 @@ class NotificationsScreen extends StatelessWidget {
     }
   }
 
-  // Method to show delete all confirmation dialog
-  Future<void> _showDeleteAllDialog(BuildContext context) async {
-    return showDialog<void>(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16.r),
-          ),
-          title: Row(
-            children: [
-              Icon(Icons.warning, color: Colors.orange, size: 24.sp),
-              SizedBox(width: 8.w),
-              Text(
-                'Delete All Notifications',
-                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
-              ),
-            ],
-          ),
-          content: Text(
-            'Are you sure you want to delete all notifications? This action cannot be undone.',
-            style: TextStyle(fontSize: 14.sp),
-          ),
-          actions: <Widget>[
-            TextButton(
-              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-            ),
-            ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.red,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(8.r),
-                ),
-              ),
-              child: const Text('Delete All'),
-              onPressed: () {
-                Navigator.of(context).pop();
-                _deleteAllNotifications(context);
-              },
-            ),
-          ],
-        );
-      },
-    );
-  }
+  
 
   // Method to delete all notifications
   Future<void> _deleteAllNotifications(BuildContext context) async {
@@ -926,16 +868,7 @@ class NotificationsScreen extends StatelessWidget {
     }
   }
 
-  // Method to navigate to history screen
-  void _navigateToHistory(BuildContext context) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const NotificationHistoryScreen(),
-      ),
-    );
-  }
-
+ 
   Widget _buildSummaryCard(int total, int pending, int fixed) {
     Widget buildStat(String label, int value, Color color) {
       return Expanded(

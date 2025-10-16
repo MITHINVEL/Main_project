@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:monitoring_system_for_street_lights/screens/history/notification_history_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../street_light/add_street_light_screen.dart';
@@ -147,7 +148,26 @@ class _DashboardScreenState extends State<DashboardScreen>
         break;
 
       case 'History':
-        break;
+        
+        Navigator.of(context).push(
+          PageRouteBuilder(
+            pageBuilder: (context, animation, secondaryAnimation) =>
+                NotificationHistoryScreen(),
+            transitionsBuilder:
+                (context, animation, secondaryAnimation, child) {
+                  return FadeTransition(
+                    opacity: animation,
+                    child: SlideTransition(
+                      position: animation.drive(
+                        Tween(begin: const Offset(0.2, 0.0), end: Offset.zero),
+                      ),
+                      child: child,
+                    ),
+                  );
+                },
+            transitionDuration: const Duration(milliseconds: 450),
+          ),
+        );        break;
       default:
         break;
     }
