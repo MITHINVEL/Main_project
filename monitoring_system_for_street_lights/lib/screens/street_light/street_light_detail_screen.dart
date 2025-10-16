@@ -47,6 +47,12 @@ class StreetLightDetailScreen extends StatelessWidget {
     final power = data['powerConsumption']?.toString() ?? '';
     final createdBy = data['createdByEmail'] ?? data['createdBy'] ?? '';
     final createdAt = _formatDate(data['createdAt']);
+    final gsmNumber = phone; // GSM ID is the phone number
+    final streetLightNumber =
+        data['streetLightNumber'] ??
+        data['number'] ??
+        data['lightNumber'] ??
+        '';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -187,43 +193,9 @@ class StreetLightDetailScreen extends StatelessWidget {
                       ],
                     ),
                   ),
+
                   // Show GSM ID (not a phone call). Provide copy action.
                   // GSM ID display + copy action
-                  Row(
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            'GSM ID',
-                            style: TextStyle(
-                              fontSize: 12.sp,
-                              color: const Color(0xFF718096),
-                            ),
-                          ),
-                          SizedBox(height: 4.h),
-                          Text(
-                            phone != null && phone.isNotEmpty ? phone : '—',
-                            style: TextStyle(fontWeight: FontWeight.w600),
-                          ),
-                        ],
-                      ),
-                      SizedBox(width: 8.w),
-                      IconButton(
-                        onPressed: () async {
-                          if (phone != null && phone.isNotEmpty) {
-                            await Clipboard.setData(ClipboardData(text: phone));
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('GSM ID copied to clipboard'),
-                              ),
-                            );
-                          }
-                        },
-                        icon: Icon(Icons.copy, color: const Color(0xFF667EEA)),
-                      ),
-                    ],
-                  ),
                 ],
               ),
             ),
@@ -301,97 +273,366 @@ class StreetLightDetailScreen extends StatelessWidget {
               ),
             ),
 
+            // Location Details Container
+            SizedBox(height: 16.h),
+            Container(
+              width: double.infinity,
+              padding: EdgeInsets.all(16.w),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [Color(0xFFF7FAFC), Color(0xFFEDF2F7)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12.r),
+                border: Border.all(
+                  color: const Color(0xFF667EEA).withOpacity(0.2),
+                  width: 1,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF667EEA).withOpacity(0.08),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Container(
+                        padding: EdgeInsets.all(8.w),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF667EEA).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Icon(
+                          Icons.location_city,
+                          color: const Color(0xFF667EEA),
+                          size: 20.sp,
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Text(
+                        'Location Details',
+                        style: TextStyle(
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w700,
+                          color: const Color(0xFF2D3748),
+                        ),
+                      ),
+                    ],
+                  ),
+                  SizedBox(height: 16.h),
+
+                  // GSM ID Row
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.all(12.w),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8.r),
+                            border: Border.all(
+                              color: Colors.green.withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.sim_card,
+                                    color: Colors.green,
+                                    size: 16.sp,
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Text(
+                                    'GSM ID',
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      color: Colors.green[700],
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 6.h),
+                              Text(
+                                gsmNumber.isNotEmpty
+                                    ? gsmNumber
+                                    : 'Not Available',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: gsmNumber.isNotEmpty
+                                      ? const Color(0xFF2D3748)
+                                      : Colors.grey[600],
+                                  fontFamily: 'monospace',
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      SizedBox(width: 12.w),
+                      Expanded(
+                        child: Container(
+                          padding: EdgeInsets.all(12.w),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8.r),
+                            border: Border.all(
+                              color: const Color(0xFF667EEA).withOpacity(0.3),
+                              width: 1,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.lightbulb_outline,
+                                    color: const Color(0xFF667EEA),
+                                    size: 16.sp,
+                                  ),
+                                  SizedBox(width: 6.w),
+                                  Text(
+                                    'Light No.',
+                                    style: TextStyle(
+                                      fontSize: 12.sp,
+                                      color: const Color(0xFF667EEA),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              SizedBox(height: 6.h),
+                              Text(
+                                streetLightNumber.isNotEmpty
+                                    ? streetLightNumber
+                                    : 'Not Set',
+                                style: TextStyle(
+                                  fontSize: 14.sp,
+                                  fontWeight: FontWeight.w700,
+                                  color: streetLightNumber.isNotEmpty
+                                      ? const Color(0xFF2D3748)
+                                      : Colors.grey[600],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: 12.h),
+
+                  // Location Address Row
+                  Container(
+                    width: double.infinity,
+                    padding: EdgeInsets.all(12.w),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(8.r),
+                      border: Border.all(
+                        color: Colors.orange.withOpacity(0.3),
+                        width: 1,
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.location_on,
+                              color: Colors.orange,
+                              size: 16.sp,
+                            ),
+                            SizedBox(width: 6.w),
+                            Text(
+                              'Address',
+                              style: TextStyle(
+                                fontSize: 12.sp,
+                                color: Colors.orange[700],
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ],
+                        ),
+                        SizedBox(height: 6.h),
+                        Text(
+                          address.isNotEmpty
+                              ? address
+                              : 'Address not available',
+                          style: TextStyle(
+                            fontSize: 13.sp,
+                            fontWeight: FontWeight.w600,
+                            color: address.isNotEmpty
+                                ? const Color(0xFF2D3748)
+                                : Colors.grey[600],
+                            height: 1.3,
+                          ),
+                        ),
+                        if (area.isNotEmpty || ward.isNotEmpty) ...[
+                          SizedBox(height: 6.h),
+                          Text(
+                            '${area.isNotEmpty ? 'Area: $area' : ''}${area.isNotEmpty && ward.isNotEmpty ? ' • ' : ''}${ward.isNotEmpty ? 'Ward: $ward' : ''}',
+                            style: TextStyle(
+                              fontSize: 11.sp,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
             Spacer(),
 
-            // Buttons
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton.icon(
-                    onPressed: () async {
-                      // Open external Google Maps for directions (app or web)
-                      final url = Uri.parse(
-                        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
-                      );
-                      try {
-                        await launchUrl(
-                          url,
-                          mode: LaunchMode.externalApplication,
+            // Navigation Buttons
+            Container(
+              padding: EdgeInsets.all(4.w),
+              decoration: BoxDecoration(
+                color: Colors.grey[100],
+                borderRadius: BorderRadius.circular(16.r),
+              ),
+              child: Column(
+                children: [
+                  // Get Directions Button
+                  Container(
+                    width: double.infinity,
+                    margin: EdgeInsets.only(bottom: 8.h),
+                    child: ElevatedButton.icon(
+                      onPressed: () async {
+                        // Open external Google Maps for directions
+                        final url = Uri.parse(
+                          'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
                         );
-                      } catch (_) {}
-                    },
-                    icon: Icon(
-                      Icons.directions,
-                      color: const Color(0xFF667EEA),
-                    ),
-                    label: Text(
-                      'Navigate',
-                      style: TextStyle(color: const Color(0xFF667EEA)),
-                    ),
-                    style: OutlinedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                        try {
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        } catch (_) {
+                          // Show error if can't open maps
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Could not open Maps app'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: Container(
+                        padding: EdgeInsets.all(8.w),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Icon(
+                          Icons.directions_car,
+                          color: Colors.white,
+                          size: 20.sp,
+                        ),
+                      ),
+                      label: Text(
+                        'Get Directions',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFF4CAF50), // Green
+                        padding: EdgeInsets.symmetric(
+                          vertical: 16.h,
+                          horizontal: 20.w,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        elevation: 2,
+                      ),
                     ),
                   ),
-                ),
-                SizedBox(width: 12.w),
-                Expanded(
-                  child: ElevatedButton.icon(
-                    onPressed: () async {
-                      // Open external Google Maps for navigation from current location
-                      final url = Uri.parse(
-                        'https://www.google.com/maps/dir/?api=1&destination=$lat,$lng&travelmode=driving',
-                      );
-                      if (await canLaunchUrl(url))
-                        await launchUrl(
-                          url,
-                          mode: LaunchMode.externalApplication,
+                  // Open in Maps Button
+                  Container(
+                    width: double.infinity,
+                    child: OutlinedButton.icon(
+                      onPressed: () async {
+                        // Open Google Maps web version
+                        final url = Uri.parse(
+                          'https://www.google.com/maps/search/?api=1&query=$lat,$lng',
                         );
-                    },
-                    icon: Icon(Icons.open_in_new, color: Colors.white),
-                    label: Text(
-                      'Open in Maps',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      padding: EdgeInsets.symmetric(vertical: 14.h),
+                        try {
+                          await launchUrl(
+                            url,
+                            mode: LaunchMode.externalApplication,
+                          );
+                        } catch (_) {
+                          // Show error if can't open browser
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text('Could not open web browser'),
+                              backgroundColor: Colors.red,
+                            ),
+                          );
+                        }
+                      },
+                      icon: Container(
+                        padding: EdgeInsets.all(8.w),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2196F3).withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(8.r),
+                        ),
+                        child: Icon(
+                          Icons.map_outlined,
+                          color: const Color(0xFF2196F3),
+                          size: 20.sp,
+                        ),
+                      ),
+                      label: Text(
+                        'View on Map',
+                        style: TextStyle(
+                          color: const Color(0xFF2196F3),
+                          fontSize: 16.sp,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      style: OutlinedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(
+                          vertical: 16.h,
+                          horizontal: 20.w,
+                        ),
+                        side: BorderSide(
+                          color: const Color(0xFF2196F3),
+                          width: 2,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12.r),
+                        ),
+                        backgroundColor: Colors.white,
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  Widget _infoCard(String title, String value, Color color) {
-    return Container(
-      padding: EdgeInsets.all(14.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12.r),
-        boxShadow: [
-          BoxShadow(color: Colors.black.withOpacity(0.03), blurRadius: 8),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            title,
-            style: TextStyle(fontSize: 12.sp, color: const Color(0xFF718096)),
-          ),
-          SizedBox(height: 6.h),
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 16.sp,
-              fontWeight: FontWeight.bold,
-              color: color,
-            ),
-          ),
-        ],
       ),
     );
   }

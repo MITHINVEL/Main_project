@@ -4,6 +4,7 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import '../street_light/street_light_detail_screen.dart';
+import '../history/notification_history_screen.dart';
 
 class NotificationsScreen extends StatelessWidget {
   final bool showAppBar;
@@ -20,38 +21,51 @@ class NotificationsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
-      appBar: 
-           AppBar(
-              elevation: 0,
-              centerTitle: true,
-              toolbarHeight: 62.h,
-              backgroundColor: Colors.transparent,
-              foregroundColor: Colors.white,
-              title: Text(
-                'Fault Notifications',
-                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
-              ),
-              leading: IconButton(
-                onPressed: () => Navigator.of(context).pop(),
-                icon: const Icon(Icons.arrow_back),
-              ),
-              
-              flexibleSpace: Container(
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                    begin: Alignment.topLeft,
-                    end: Alignment.bottomRight,
-                  ),
-                 
-                ),
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.vertical(
-                  bottom: Radius.circular(28.r),
-                ),
-              ),
-         ),      
+      appBar: AppBar(
+        elevation: 0,
+        centerTitle: true,
+        toolbarHeight: 62.h,
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        title: Text(
+          'Fault Notifications',
+          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
+        ),
+        leading: IconButton(
+          onPressed: () => Navigator.of(context).pop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
+        actions: [
+          IconButton(
+            onPressed: () => _showDeleteAllDialog(context),
+            icon: const Icon(Icons.delete_sweep, size: 22),
+            tooltip: 'Delete All',
+          ),
+          IconButton(
+            onPressed: () => _navigateToHistory(context),
+            icon: const Icon(Icons.history, size: 22),
+            tooltip: 'History',
+          ),
+          IconButton(
+            onPressed: () {},
+            icon: const Icon(Icons.tune, size: 22),
+            tooltip: 'Filters',
+          ),
+        ],
+
+        flexibleSpace: Container(
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+          ),
+        ),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28.r)),
+        ),
+      ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: FirebaseFirestore.instance
@@ -60,33 +74,120 @@ class NotificationsScreen extends StatelessWidget {
               .snapshots(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-              return Center(child: Text('Error loading notifications'));
+              print('Firestore Error: ${snapshot.error}');
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.error_outline,
+                      size: 64.sp,
+                      color: Colors.red,
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Unable to load notifications',
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.red,
+                      ),
+                    ),
+                    SizedBox(height: 8.h),
+                    Text(
+                      'Please check your internet connection',
+                      style: TextStyle(
+                        fontSize: 12.sp,
+                        color: Colors.grey,
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    ElevatedButton(
+                      onPressed: () {
+                        // Trigger rebuild
+                        Navigator.of(context).pop();
+                        Navigator.of(context).pushReplacement(
+                          MaterialPageRoute(
+                            builder: (context) => const NotificationsScreen(),
+                          ),
+                        );
+                      },
+                      child: const Text('Retry'),
+                    ),
+                  ],
+                ),
+              );
             }
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
+            
+            if (snapshot.connectionState == ConnectionState.waiting) {
+              return Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(
+                      valueColor: AlwaysStoppedAnimation<Color>(
+                        const Color(0xFF667EEA),
+                      ),
+                    ),
+                    SizedBox(height: 16.h),
+                    Text(
+                      'Loading notifications...',
+                      style: TextStyle(
+                        fontSize: 14.sp,
+                        color: Colors.grey[600],
+                      ),
+                    ),
+                  ],
+                ),
+              );
             }
 
-            final docs = snapshot.data!.docs;
-            // Only keep notifications that came from SMS or have relatedLights
-            final smsDocs = docs.where((doc) {
-              final allDocs = snapshot.data!.docs;
-              final data = allDocs.firstWhere((d) => d.id == doc.id).data();
-              final related = (data['relatedLights'] as List<dynamic>?) ?? [];
-              final source = (data['source'] ?? '').toString().toLowerCase();
-              return source.startsWith('sms') || related.isNotEmpty;
+            if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
+              return ListView(
+                padding: EdgeInsets.fromLTRB(20.w, 24.h, 20.w, 32.h),
+                children: [
+                  _buildSummaryCard(0, 0, 0).animate().fadeIn(duration: 400.ms),
+                  SizedBox(height: 32.h),
+                  _buildEmptyState(context),
+                ],
+              );
+            }
+
+            final allDocs = snapshot.data!.docs;
+            
+            // Filter SMS notifications and related lights
+            final allSmsDocs = allDocs.where((doc) {
+              try {
+                final data = doc.data();
+                final related = (data['relatedLights'] as List<dynamic>?) ?? [];
+                final source = (data['source'] ?? '').toString().toLowerCase();
+                return source.startsWith('sms') || related.isNotEmpty;
+              } catch (e) {
+                print('Error filtering doc ${doc.id}: $e');
+                return false;
+              }
             }).toList();
 
-            final pendingCount = smsDocs
-                .where((doc) => !(doc.data()['isFixed'] as bool? ?? false))
-                .length;
-            final fixedCount = smsDocs.length - pendingCount;
+            // Separate pending and fixed notifications
+            final pendingDocs = allSmsDocs.where((doc) {
+              try {
+                return !(doc.data()['isFixed'] as bool? ?? false);
+              } catch (e) {
+                print('Error checking isFixed for doc ${doc.id}: $e');
+                return true;
+              }
+            }).toList();
 
-            if (smsDocs.isEmpty) {
+            final fixedCount = allSmsDocs.length - pendingDocs.length;
+            final totalCount = allSmsDocs.length;
+            final pendingCount = pendingDocs.length;
+
+            if (pendingDocs.isEmpty) {
               return ListView(
                 padding: EdgeInsets.fromLTRB(20.w, 24.h, 20.w, 32.h),
                 children: [
                   _buildSummaryCard(
-                    docs.length,
+                    totalCount,
                     pendingCount,
                     fixedCount,
                   ).animate().fadeIn(duration: 400.ms),
@@ -98,28 +199,29 @@ class NotificationsScreen extends StatelessWidget {
 
             return ListView.separated(
               padding: EdgeInsets.fromLTRB(16.w, 20.h, 16.w, 24.h),
-              itemCount: smsDocs.length + 1,
+              itemCount: pendingDocs.length + 1,
               separatorBuilder: (_, __) => SizedBox(height: 14.h),
               itemBuilder: (context, index) {
                 if (index == 0) {
                   return _buildSummaryCard(
-                    docs.length,
+                    totalCount,
                     pendingCount,
                     fixedCount,
                   ).animate().fadeIn(duration: 400.ms);
                 }
 
-                final doc = smsDocs[index - 1];
-                final data = doc.data();
-                final from = data['from'] ?? 'Unknown';
-                final body = data['body'] ?? '';
-                final ts = data['timestamp'] as Timestamp?;
-                final isFixed = data['isFixed'] ?? false;
-                final related =
-                    (data['relatedLights'] as List<dynamic>?)?.cast<String>() ??
-                    [];
+                final doc = pendingDocs[index - 1];
+                    final data = doc.data();
+                    final from = data['from'] ?? 'Unknown';
+                    final body = data['body'] ?? '';
+                    final ts = data['timestamp'] as Timestamp?;
+                    final isFixed = data['isFixed'] ?? false;
+                    final related =
+                        (data['relatedLights'] as List<dynamic>?)
+                            ?.cast<String>() ??
+                        [];
 
-                return GestureDetector(
+                    return GestureDetector(
                       onTap: () {
                         // Navigate to street light detail page if related lights exist
                         if (related.isNotEmpty) {
@@ -656,20 +758,14 @@ class NotificationsScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                    )
-                    .animate()
-                    .slideY(
-                      begin: 0.08,
-                      duration: 350.ms,
-                      delay: ((index - 1) * 60).ms,
-                    )
-                    .fadeIn(duration: 350.ms);
+                    ).animate().slideY(begin: 0.08, duration: 350.ms, delay: ((index - 1) * 60).ms).fadeIn(duration: 350.ms);
+                  },
+                );
               },
-            );
-          },
-        ),
-      ),
-    );
+        )));
+          }
+      
+    
   }
 
   Future<void> _markNotificationAsFixed(
@@ -722,6 +818,122 @@ class NotificationsScreen extends StatelessWidget {
         );
       }
     }
+  }
+
+  // Method to show delete all confirmation dialog
+  Future<void> _showDeleteAllDialog(BuildContext context) async {
+    return showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16.r),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: Colors.orange, size: 24.sp),
+              SizedBox(width: 8.w),
+              Text(
+                'Delete All Notifications',
+                style: TextStyle(fontSize: 16.sp, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Text(
+            'Are you sure you want to delete all notifications? This action cannot be undone.',
+            style: TextStyle(fontSize: 14.sp),
+          ),
+          actions: <Widget>[
+            TextButton(
+              child: Text('Cancel', style: TextStyle(color: Colors.grey[600])),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8.r),
+                ),
+              ),
+              child: const Text('Delete All'),
+              onPressed: () {
+                Navigator.of(context).pop();
+                _deleteAllNotifications(context);
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // Method to delete all notifications
+  Future<void> _deleteAllNotifications(BuildContext context) async {
+    try {
+      final batch = FirebaseFirestore.instance.batch();
+      final notifications = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('isFixed', isEqualTo: false)
+          .get();
+
+      for (var doc in notifications.docs) {
+        batch.delete(doc.reference);
+      }
+
+      await batch.commit();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 8),
+                Text('All notifications deleted successfully'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Error deleting notifications'),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  // Method to navigate to history screen
+  void _navigateToHistory(BuildContext context) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const NotificationHistoryScreen(),
+      ),
+    );
   }
 
   Widget _buildSummaryCard(int total, int pending, int fixed) {
@@ -931,4 +1143,4 @@ class NotificationsScreen extends StatelessWidget {
       ),
     );
   }
-}
+
