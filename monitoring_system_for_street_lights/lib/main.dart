@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:monitoring_system_for_street_lights/screens/home/dashboard_screen.dart';
+import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -10,6 +11,10 @@ void main() async {
 
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Initialize SMS Listener Service with platform listener enabled
+  final smsService = SmsListenerService(enablePlatformListener: true);
+  await smsService.start();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([

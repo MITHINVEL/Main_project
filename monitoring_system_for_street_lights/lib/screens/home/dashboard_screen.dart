@@ -8,7 +8,6 @@ import '../street_light/add_street_light_screen.dart';
 import '../street_light/street_lights_list_screen.dart';
 import '../../widgets/weather_widget.dart';
 
-
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -148,7 +147,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         break;
 
       case 'History':
-     
         break;
       default:
         break;
@@ -171,7 +169,9 @@ class _DashboardScreenState extends State<DashboardScreen>
         children: [
           _buildDashboardContent(),
           _buildAnalyticsContent(),
-          _buildAlertsContent(),
+          const NotificationsScreen(
+            showAppBar: false,
+          ), // Embedded notifications screen
           _buildProfileContent(),
         ],
       ),
@@ -232,37 +232,6 @@ class _DashboardScreenState extends State<DashboardScreen>
             SizedBox(height: 8.h),
             Text(
               'Coming Soon',
-              style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAlertsContent() {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              Icons.notifications,
-              size: 64.sp,
-              color: const Color(0xFF667EEA),
-            ),
-            SizedBox(height: 16.h),
-            Text(
-              'Alerts',
-              style: TextStyle(
-                fontSize: 24.sp,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF2D3748),
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'No new alerts',
               style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
             ),
           ],
@@ -614,20 +583,6 @@ class _DashboardScreenState extends State<DashboardScreen>
     final isSelected = _currentIndex == index;
     return GestureDetector(
       onTap: () {
-        if (index == 2) {
-          Navigator.of(context).push(
-            PageRouteBuilder(
-              pageBuilder: (context, animation, secondaryAnimation) =>
-                  NotificationsScreen(),
-              transitionsBuilder:
-                  (context, animation, secondaryAnimation, child) {
-                    return FadeTransition(opacity: animation, child: child);
-                  },
-              transitionDuration: const Duration(milliseconds: 350),
-            ),
-          );
-          return;
-        }
         setState(() {
           _currentIndex = index;
         });
