@@ -128,7 +128,12 @@ class SmsListenerService {
       }
 
       if (matches.isNotEmpty) {
-        // Save notification document
+        // Get the user who owns the first matching street light
+        final firstMatch = matches.first;
+        final streetLightData = firstMatch.data();
+        final createdBy = streetLightData['createdBy'] ?? '';
+
+        // Save notification document with user association
         await FirebaseFirestore.instance.collection('notifications').add({
           'from': normalized,
           'body': message,
@@ -136,8 +141,9 @@ class SmsListenerService {
           'source': source,
           'relatedLights': matches.map((d) => d.id).toList(),
           'isFixed': false,
+          'createdBy': createdBy, // Associate with street light owner
         });
-        print('SMS notification created: $message');
+        print('SMS notification created for user $createdBy: $message');
       } else {
         print('No matching street light for number: $normalized');
       }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:iconsax/iconsax.dart';
 import 'dart:math' as math;
 import '../../services/weather_service.dart';
@@ -123,6 +124,7 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<void> _loadSolarStreetLights() async {
     try {
+      // Load all street lights for backward compatibility
       final querySnapshot = await FirebaseFirestore.instance
           .collection('street_lights')
           .where('isActive', isEqualTo: true)
@@ -501,19 +503,29 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
     });
 
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        _showErrorSnackBar('User not logged in');
+        return;
+      }
+
       // Try to find by GSM number field
       final coll = FirebaseFirestore.instance.collection('street_lights');
       QuerySnapshot<Map<String, dynamic>> qs = await coll
+          .where('createdBy', isEqualTo: user.uid)
           .where('gsmNumber', isEqualTo: q)
           .get();
       if (qs.docs.isEmpty) {
         // Try by streetLightNumber or name
-        qs = await coll.where('streetLightNumber', isEqualTo: q).get();
+        qs = await coll
+            .where('createdBy', isEqualTo: user.uid)
+            .where('streetLightNumber', isEqualTo: q)
+            .get();
       }
 
       if (qs.docs.isEmpty) {
         // No exact match; try a 'contains' like search on name (client-side)
-        final all = await coll.get();
+        final all = await coll.where('createdBy', isEqualTo: user.uid).get();
         final matches = all.docs.where((d) {
           final data = d.data();
           final name = (data['name'] ?? '').toString().toLowerCase();

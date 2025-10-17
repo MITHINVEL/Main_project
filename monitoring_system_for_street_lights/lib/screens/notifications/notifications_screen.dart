@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -15,6 +16,24 @@ class NotificationsScreen extends StatelessWidget {
     if (ts == null) return '';
     final dt = ts.toDate();
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _buildNotificationsStream() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // If no user is logged in, show all notifications for backward compatibility
+      return FirebaseFirestore.instance
+          .collection('notifications')
+          .orderBy('timestamp', descending: true)
+          .snapshots();
+    }
+
+    // For logged in users, show all notifications for now (until we migrate existing data)
+    // TODO: Change this to user-specific filtering once data is migrated
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .orderBy('timestamp', descending: true)
+        .snapshots();
   }
 
   @override
@@ -50,10 +69,7 @@ class NotificationsScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection('notifications')
-              .orderBy('timestamp', descending: true)
-              .snapshots(),
+          stream: _buildNotificationsStream(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               print('Firestore Error: ${snapshot.error}');
@@ -61,11 +77,7 @@ class NotificationsScreen extends StatelessWidget {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(
-                      Icons.error_outline,
-                      size: 64.sp,
-                      color: Colors.red,
-                    ),
+                    Icon(Icons.error_outline, size: 64.sp, color: Colors.red),
                     SizedBox(height: 16.h),
                     Text(
                       'Unable to load notifications',
@@ -78,10 +90,7 @@ class NotificationsScreen extends StatelessWidget {
                     SizedBox(height: 8.h),
                     Text(
                       'Please check your internet connection',
-                      style: TextStyle(
-                        fontSize: 12.sp,
-                        color: Colors.grey,
-                      ),
+                      style: TextStyle(fontSize: 12.sp, color: Colors.grey),
                     ),
                     SizedBox(height: 16.h),
                     ElevatedButton(
@@ -100,7 +109,7 @@ class NotificationsScreen extends StatelessWidget {
                 ),
               );
             }
-            
+
             if (snapshot.connectionState == ConnectionState.waiting) {
               return Center(
                 child: Column(
@@ -136,7 +145,7 @@ class NotificationsScreen extends StatelessWidget {
             }
 
             final allDocs = snapshot.data!.docs;
-            
+
             // Filter SMS notifications and related lights
             final allSmsDocs = allDocs.where((doc) {
               try {
@@ -193,20 +202,19 @@ class NotificationsScreen extends StatelessWidget {
                 }
 
                 final doc = pendingDocs[index - 1];
-                    final data = doc.data();
-                    final from = data['from'] ?? 'Unknown';
-                    final body = data['body'] ?? '';
-                    final ts = data['timestamp'] as Timestamp?;
-                    final isFixed = data['isFixed'] ?? false;
-                    final related =
-                        (data['relatedLights'] as List<dynamic>?)
-                            ?.cast<String>() ??
-                        [];
+                final data = doc.data();
+                final from = data['from'] ?? 'Unknown';
+                final body = data['body'] ?? '';
+                final ts = data['timestamp'] as Timestamp?;
+                final isFixed = data['isFixed'] ?? false;
+                final related =
+                    (data['relatedLights'] as List<dynamic>?)?.cast<String>() ??
+                    [];
 
-                    return GestureDetector(
+                return GestureDetector(
                       onTap: () {
-                       if (related.isNotEmpty) {
-                         FirebaseFirestore.instance
+                        if (related.isNotEmpty) {
+                          FirebaseFirestore.instance
                               .collection('street_lights')
                               .doc(related.first)
                               .get()
@@ -738,329 +746,329 @@ class NotificationsScreen extends StatelessWidget {
                           ],
                         ),
                       ),
-                    ).animate().slideY(begin: 0.08, duration: 350.ms, delay: ((index - 1) * 60).ms).fadeIn(duration: 350.ms);
-                  },
-                );
+                    )
+                    .animate()
+                    .slideY(
+                      begin: 0.08,
+                      duration: 350.ms,
+                      delay: ((index - 1) * 60).ms,
+                    )
+                    .fadeIn(duration: 350.ms);
               },
-        )));
-          }
+            );
+          },
+        ),
+      ),
+    );
+  }
 }
 
-  Future<void> _markNotificationAsFixed(
-    String notificationId,
-    BuildContext context, {
-    bool showSnackBar = true,
-  }) async {
-    try {
-      await FirebaseFirestore.instance
-          .collection('notifications')
-          .doc(notificationId)
-          .update({'isFixed': true, 'fixedAt': FieldValue.serverTimestamp()});
+Future<void> _markNotificationAsFixed(
+  String notificationId,
+  BuildContext context, {
+  bool showSnackBar = true,
+}) async {
+  try {
+    await FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(notificationId)
+        .update({'isFixed': true, 'fixedAt': FieldValue.serverTimestamp()});
 
-      if (showSnackBar && context.mounted) {
-        // Clear any existing snackbars first
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Notification marked as fixed'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.all(16),
+    if (showSnackBar && context.mounted) {
+      // Clear any existing snackbars first
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Notification marked as fixed'),
+            ],
           ),
-        );
-      }
-    } catch (e) {
-      if (showSnackBar && context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Error marking notification as fixed'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
-    }
-  }
-
-  
-
-  // Method to delete all notifications
-  Future<void> _deleteAllNotifications(BuildContext context) async {
-    try {
-      final batch = FirebaseFirestore.instance.batch();
-      final notifications = await FirebaseFirestore.instance
-          .collection('notifications')
-          .where('isFixed', isEqualTo: false)
-          .get();
-
-      for (var doc in notifications.docs) {
-        batch.delete(doc.reference);
-      }
-
-      await batch.commit();
-
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.check_circle, color: Colors.white),
-                SizedBox(width: 8),
-                Text('All notifications deleted successfully'),
-              ],
-            ),
-            backgroundColor: Colors.green,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
-    } catch (e) {
-      if (context.mounted) {
-        ScaffoldMessenger.of(context).clearSnackBars();
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: const Row(
-              children: [
-                Icon(Icons.error, color: Colors.white),
-                SizedBox(width: 8),
-                Text('Error deleting notifications'),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
-            margin: const EdgeInsets.all(16),
-          ),
-        );
-      }
-    }
-  }
-
- 
-  Widget _buildSummaryCard(int total, int pending, int fixed) {
-    Widget buildStat(String label, int value, Color color) {
-      return Expanded(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              label,
-              style: TextStyle(
-                fontSize: 13.sp,
-                color: Colors.white.withOpacity(0.9),
-              ),
-            ),
-            SizedBox(height: 6.h),
-            Row(
-              children: [
-                Container(
-                  width: 8.w,
-                  height: 8.w,
-                  decoration: BoxDecoration(
-                    color: color,
-                    shape: BoxShape.circle,
-                  ),
-                ),
-                SizedBox(width: 6.w),
-                Text(
-                  value.toString().padLeft(2, '0'),
-                  style: TextStyle(
-                    fontSize: 18.sp,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.white,
-                  ),
-                ),
-              ],
-            ),
-          ],
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
         ),
       );
     }
-
-    return Container(
-      padding: EdgeInsets.all(18.w),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF667EEA), Color.fromARGB(255, 168, 136, 200)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(22.r),
-        boxShadow: [
-          BoxShadow(
-            color: const Color(0xFF667EEA).withOpacity(0.3),
-            blurRadius: 24,
-            offset: const Offset(0, 12),
+  } catch (e) {
+    if (showSnackBar && context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Error marking notification as fixed'),
+            ],
           ),
-        ],
-      ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+}
+
+// Method to delete all notifications
+Future<void> _deleteAllNotifications(BuildContext context) async {
+  try {
+    final batch = FirebaseFirestore.instance.batch();
+    final notifications = await FirebaseFirestore.instance
+        .collection('notifications')
+        .where('isFixed', isEqualTo: false)
+        .get();
+
+    for (var doc in notifications.docs) {
+      batch.delete(doc.reference);
+    }
+
+    await batch.commit();
+
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.check_circle, color: Colors.white),
+              SizedBox(width: 8),
+              Text('All notifications deleted successfully'),
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  } catch (e) {
+    if (context.mounted) {
+      ScaffoldMessenger.of(context).clearSnackBars();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Row(
+            children: [
+              Icon(Icons.error, color: Colors.white),
+              SizedBox(width: 8),
+              Text('Error deleting notifications'),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+          margin: const EdgeInsets.all(16),
+        ),
+      );
+    }
+  }
+}
+
+Widget _buildSummaryCard(int total, int pending, int fixed) {
+  Widget buildStat(String label, int value, Color color) {
+    return Expanded(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Container(
-                padding: EdgeInsets.all(10.w),
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(16.r),
-                ),
-                child: const Icon(
-                  Icons.notifications_active,
-                  color: Colors.white,
-                ),
-              ),
-              SizedBox(width: 12.w),
-              Text(
-                'Live Fault Feed',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontWeight: FontWeight.w700,
-                  fontSize: 16.sp,
-                ),
-              ),
-            ],
-          ),
-          SizedBox(height: 18.h),
-          Row(
-            children: [
-              buildStat('Total alerts', total, Colors.white),
-              Container(
-                width: 1.5,
-                height: 40.h,
-                color: Colors.white.withOpacity(0.6),
-              ),
-              SizedBox(width: 12.w),
-              buildStat('Pending', pending, const Color(0xFFFBBF24)),
-              Container(
-                width: 1.5,
-                height: 40.h,
-                color: Colors.white.withOpacity(0.6),
-              ),
-              SizedBox(width: 12.w),
-              buildStat('Fixed', fixed, const Color(0xFF34D399)),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(BuildContext context) {
-    return Container(
-      padding: EdgeInsets.all(28.w),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(24.r),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.04),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 72.w,
-            height: 72.w,
-            decoration: BoxDecoration(
-              color: const Color(0xFFEEF2FF),
-              borderRadius: BorderRadius.circular(20.r),
-            ),
-            child: const Icon(
-              Icons.sentiment_satisfied_alt,
-              color: Color(0xFF6366F1),
-              size: 36,
-            ),
-          ),
-          SizedBox(height: 18.h),
           Text(
-            'You’re all caught up!',
-            style: TextStyle(
-              fontSize: 18.sp,
-              fontWeight: FontWeight.w700,
-              color: const Color(0xFF2D3748),
-            ),
-          ),
-          SizedBox(height: 8.h),
-          Text(
-            'We’ll alert you here if any street light reports a fault or anomaly.',
-            textAlign: TextAlign.center,
+            label,
             style: TextStyle(
               fontSize: 13.sp,
-              color: const Color(0xFF718096),
-              height: 1.4,
+              color: Colors.white.withOpacity(0.9),
             ),
           ),
-          SizedBox(height: 24.h),
-          ElevatedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.refresh),
-            label: const Text('Refresh Feed'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF667EEA),
-              foregroundColor: Colors.white,
-              padding: EdgeInsets.symmetric(horizontal: 22.w, vertical: 12.h),
-              shape: RoundedRectangleBorder(
+          SizedBox(height: 6.h),
+          Row(
+            children: [
+              Container(
+                width: 8.w,
+                height: 8.w,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              SizedBox(width: 6.w),
+              Text(
+                value.toString().padLeft(2, '0'),
+                style: TextStyle(
+                  fontSize: 18.sp,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  return Container(
+    padding: EdgeInsets.all(18.w),
+    decoration: BoxDecoration(
+      gradient: const LinearGradient(
+        colors: [Color(0xFF667EEA), Color.fromARGB(255, 168, 136, 200)],
+        begin: Alignment.topLeft,
+        end: Alignment.bottomRight,
+      ),
+      borderRadius: BorderRadius.circular(22.r),
+      boxShadow: [
+        BoxShadow(
+          color: const Color(0xFF667EEA).withOpacity(0.3),
+          blurRadius: 24,
+          offset: const Offset(0, 12),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(10.w),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(16.r),
               ),
+              child: const Icon(
+                Icons.notifications_active,
+                color: Colors.white,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Live Fault Feed',
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w700,
+                fontSize: 16.sp,
+              ),
+            ),
+          ],
+        ),
+        SizedBox(height: 18.h),
+        Row(
+          children: [
+            buildStat('Total alerts', total, Colors.white),
+            Container(
+              width: 1.5,
+              height: 40.h,
+              color: Colors.white.withOpacity(0.6),
+            ),
+            SizedBox(width: 12.w),
+            buildStat('Pending', pending, const Color(0xFFFBBF24)),
+            Container(
+              width: 1.5,
+              height: 40.h,
+              color: Colors.white.withOpacity(0.6),
+            ),
+            SizedBox(width: 12.w),
+            buildStat('Fixed', fixed, const Color(0xFF34D399)),
+          ],
+        ),
+      ],
+    ),
+  );
+}
+
+Widget _buildEmptyState(BuildContext context) {
+  return Container(
+    padding: EdgeInsets.all(28.w),
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(24.r),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withOpacity(0.04),
+          blurRadius: 18,
+          offset: const Offset(0, 8),
+        ),
+      ],
+    ),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: 72.w,
+          height: 72.w,
+          decoration: BoxDecoration(
+            color: const Color(0xFFEEF2FF),
+            borderRadius: BorderRadius.circular(20.r),
+          ),
+          child: const Icon(
+            Icons.sentiment_satisfied_alt,
+            color: Color(0xFF6366F1),
+            size: 36,
+          ),
+        ),
+        SizedBox(height: 18.h),
+        Text(
+          'You’re all caught up!',
+          style: TextStyle(
+            fontSize: 18.sp,
+            fontWeight: FontWeight.w700,
+            color: const Color(0xFF2D3748),
+          ),
+        ),
+        SizedBox(height: 8.h),
+        Text(
+          'We’ll alert you here if any street light reports a fault or anomaly.',
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontSize: 13.sp,
+            color: const Color(0xFF718096),
+            height: 1.4,
+          ),
+        ),
+        SizedBox(height: 24.h),
+        ElevatedButton.icon(
+          onPressed: () {},
+          icon: const Icon(Icons.refresh),
+          label: const Text('Refresh Feed'),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFF667EEA),
+            foregroundColor: Colors.white,
+            padding: EdgeInsets.symmetric(horizontal: 22.w, vertical: 12.h),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(16.r),
             ),
           ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
-  Widget _buildStatusChip(bool isFixed) {
-    return Container(
-      padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
-      decoration: BoxDecoration(
-        color: isFixed ? const Color(0xFFDEF7EC) : const Color(0xFFFFF4D6),
-        borderRadius: BorderRadius.circular(12.r),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            isFixed ? Icons.check_circle : Icons.warning_amber_rounded,
-            size: 14.sp,
+Widget _buildStatusChip(bool isFixed) {
+  return Container(
+    padding: EdgeInsets.symmetric(horizontal: 10.w, vertical: 4.h),
+    decoration: BoxDecoration(
+      color: isFixed ? const Color(0xFFDEF7EC) : const Color(0xFFFFF4D6),
+      borderRadius: BorderRadius.circular(12.r),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(
+          isFixed ? Icons.check_circle : Icons.warning_amber_rounded,
+          size: 14.sp,
+          color: isFixed ? const Color(0xFF047857) : const Color(0xFFB7791F),
+        ),
+        SizedBox(width: 6.w),
+        Text(
+          isFixed ? 'Fixed' : 'Pending',
+          style: TextStyle(
+            fontSize: 11.sp,
+            fontWeight: FontWeight.w600,
             color: isFixed ? const Color(0xFF047857) : const Color(0xFFB7791F),
           ),
-          SizedBox(width: 6.w),
-          Text(
-            isFixed ? 'Fixed' : 'Pending',
-            style: TextStyle(
-              fontSize: 11.sp,
-              fontWeight: FontWeight.w600,
-              color: isFixed
-                  ? const Color(0xFF047857)
-                  : const Color(0xFFB7791F),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
+        ),
+      ],
+    ),
+  );
+}

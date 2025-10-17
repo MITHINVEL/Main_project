@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:monitoring_system_for_street_lights/screens/history/notification_history_screen.dart';
 import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
@@ -66,6 +67,20 @@ class _DashboardScreenState extends State<DashboardScreen>
     } else {
       return 'User';
     }
+  }
+
+  Stream<int> _getPendingNotificationsCount() {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      return Stream.value(0);
+    }
+
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .where('createdBy', isEqualTo: user.uid)
+        .where('isFixed', isEqualTo: false)
+        .snapshots()
+        .map((snapshot) => snapshot.docs.length);
   }
 
   void _handleActionTap(String actionTitle) {
@@ -148,7 +163,6 @@ class _DashboardScreenState extends State<DashboardScreen>
         break;
 
       case 'History':
-        
         Navigator.of(context).push(
           PageRouteBuilder(
             pageBuilder: (context, animation, secondaryAnimation) =>
@@ -167,7 +181,8 @@ class _DashboardScreenState extends State<DashboardScreen>
                 },
             transitionDuration: const Duration(milliseconds: 450),
           ),
-        );        break;
+        );
+        break;
       default:
         break;
     }
@@ -388,13 +403,30 @@ class _DashboardScreenState extends State<DashboardScreen>
                     Positioned(
                       top: 8.h,
                       right: 8.w,
-                      child:
-                          Container(
-                                width: 8.w,
-                                height: 8.h,
+                      child: StreamBuilder<int>(
+                        stream: _getPendingNotificationsCount(),
+                        builder: (context, snapshot) {
+                          final count = snapshot.data ?? 0;
+                          if (count == 0) return const SizedBox.shrink();
+
+                          return Container(
+                                padding: EdgeInsets.symmetric(
+                                  horizontal: 6.w,
+                                  vertical: 2.h,
+                                ),
                                 decoration: const BoxDecoration(
                                   color: Color(0xFFE53E3E),
-                                  shape: BoxShape.circle,
+                                  borderRadius: BorderRadius.all(
+                                    Radius.circular(10),
+                                  ),
+                                ),
+                                child: Text(
+                                  count > 99 ? '99+' : count.toString(),
+                                  style: TextStyle(
+                                    fontSize: 10.sp,
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               )
                               .animate()
@@ -406,7 +438,9 @@ class _DashboardScreenState extends State<DashboardScreen>
                               .shimmer(
                                 duration: 2000.ms,
                                 color: Colors.red.withOpacity(0.5),
-                              ),
+                              );
+                        },
+                      ),
                     ),
                   ],
                 ),
@@ -510,7 +544,10 @@ class _DashboardScreenState extends State<DashboardScreen>
                                             shape: BoxShape.circle,
                                           ),
                                           child: Text(
-                                            action['count'] as String,
+                                            action['count'] != null
+                                                ? (action['count'] as int)
+                                                      .toString()
+                                                : '',
                                             style: TextStyle(
                                               fontSize: 8.sp,
                                               color: Colors.white,

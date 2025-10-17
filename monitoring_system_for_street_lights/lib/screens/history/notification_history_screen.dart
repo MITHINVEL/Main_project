@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -12,6 +13,15 @@ class NotificationHistoryScreen extends StatelessWidget {
     if (ts == null) return '';
     final dt = ts.toDate();
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  Stream<QuerySnapshot<Map<String, dynamic>>> _buildHistoryStream() {
+    // Show all fixed notifications for backward compatibility
+    return FirebaseFirestore.instance
+        .collection('notifications')
+        .where('isFixed', isEqualTo: true)
+        .orderBy('timestamp', descending: true)
+        .snapshots();
   }
 
   @override
@@ -32,7 +42,7 @@ class NotificationHistoryScreen extends StatelessWidget {
           onPressed: () => Navigator.of(context).pop(),
           icon: const Icon(Icons.arrow_back),
         ),
-       
+
         flexibleSpace: Container(
           decoration: const BoxDecoration(
             gradient: LinearGradient(
@@ -48,13 +58,10 @@ class NotificationHistoryScreen extends StatelessWidget {
       ),
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-         stream: FirebaseFirestore.instance
-              .collection('notifications')
-              .where('isFixed', isEqualTo: true)
-              .snapshots(),
+          stream: _buildHistoryStream(),
           builder: (context, snapshot) {
             if (snapshot.hasError) {
-             return Center(
+              return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -534,8 +541,6 @@ class NotificationHistoryScreen extends StatelessWidget {
       ),
     );
   }
-
-  
 
   Future<void> _clearHistory(BuildContext context) async {
     try {
