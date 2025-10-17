@@ -96,10 +96,17 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
   }
 
   Widget _buildStreetLightsList() {
+    final user = FirebaseAuth.instance.currentUser;
+
+    // If no user is logged in, show empty state
+    if (user == null) {
+      return _buildLoginRequiredState();
+    }
+
     return StreamBuilder<QuerySnapshot>(
       stream: FirebaseFirestore.instance
           .collection('street_lights')
-          .orderBy('createdAt', descending: true)
+          .where('createdBy', isEqualTo: user.uid)
           .snapshots(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
@@ -118,6 +125,23 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
 
         final streetLights = snapshot.data!.docs;
         final filteredLights = _filterStreetLights(streetLights);
+        
+        // Sort by createdAt on client-side (descending - newest first)
+        filteredLights.sort((a, b) {
+          final aData = a.data() as Map<String, dynamic>;
+          final bData = b.data() as Map<String, dynamic>;
+          final aCreatedAt = aData['createdAt'];
+          final bCreatedAt = bData['createdAt'];
+          
+          if (aCreatedAt == null && bCreatedAt == null) return 0;
+          if (aCreatedAt == null) return 1; // nulls last
+          if (bCreatedAt == null) return -1;
+          
+          if (aCreatedAt is Timestamp && bCreatedAt is Timestamp) {
+            return bCreatedAt.compareTo(aCreatedAt); // descending
+          }
+          return 0;
+        });
 
         return ListView.builder(
           padding: EdgeInsets.symmetric(horizontal: 20.w),
@@ -624,6 +648,59 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     } catch (e) {
       return '';
     }
+  }
+
+  Widget _buildLoginRequiredState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Container(
+            width: 120.w,
+            height: 120.h,
+            decoration: BoxDecoration(
+              color: const Color(0xFF667EEA).withOpacity(0.1),
+              borderRadius: BorderRadius.circular(60.r),
+            ),
+            child: Icon(
+              Icons.login,
+              size: 60.sp,
+              color: const Color(0xFF667EEA),
+            ),
+          ),
+          SizedBox(height: 24.h),
+          Text(
+            'Login Required',
+            style: TextStyle(
+              fontSize: 20.sp,
+              color: const Color(0xFF2D3748),
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          SizedBox(height: 8.h),
+          Text(
+            'Please login to view your street lights',
+            style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
+          ),
+          SizedBox(height: 24.h),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pushNamed(context, '/login');
+            },
+            icon: Icon(Icons.login, size: 20.sp),
+            label: Text('Login', style: TextStyle(fontSize: 16.sp)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF667EEA),
+              foregroundColor: Colors.white,
+              padding: EdgeInsets.symmetric(horizontal: 24.w, vertical: 16.h),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+            ),
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 800.ms);
   }
 
   // Previously showed details in a bottom sheet; replaced by full-screen

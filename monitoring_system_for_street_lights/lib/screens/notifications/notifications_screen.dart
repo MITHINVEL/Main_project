@@ -21,17 +21,14 @@ class NotificationsScreen extends StatelessWidget {
   Stream<QuerySnapshot<Map<String, dynamic>>> _buildNotificationsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
-      // If no user is logged in, show all notifications for backward compatibility
-      return FirebaseFirestore.instance
-          .collection('notifications')
-          .orderBy('timestamp', descending: true)
-          .snapshots();
+      // If no user is logged in, return empty stream
+      return const Stream.empty();
     }
 
-    // For logged in users, show all notifications for now (until we migrate existing data)
-    // TODO: Change this to user-specific filtering once data is migrated
+    // Show only notifications for the current user
     return FirebaseFirestore.instance
         .collection('notifications')
+        .where('createdBy', isEqualTo: user.uid)
         .orderBy('timestamp', descending: true)
         .snapshots();
   }
@@ -818,12 +815,24 @@ Future<void> _markNotificationAsFixed(
   }
 }
 
-// Method to delete all notifications
+// Method to delete all notifications for the current user
 Future<void> _deleteAllNotifications(BuildContext context) async {
   try {
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('User not logged in'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
     final batch = FirebaseFirestore.instance.batch();
     final notifications = await FirebaseFirestore.instance
         .collection('notifications')
+        .where('createdBy', isEqualTo: user.uid)
         .where('isFixed', isEqualTo: false)
         .get();
 

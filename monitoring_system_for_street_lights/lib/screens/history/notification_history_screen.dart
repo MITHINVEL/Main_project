@@ -16,9 +16,16 @@ class NotificationHistoryScreen extends StatelessWidget {
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _buildHistoryStream() {
-    // Show all fixed notifications for backward compatibility
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      // If no user is logged in, return empty stream
+      return const Stream.empty();
+    }
+
+    // Show only fixed notifications for the current user
     return FirebaseFirestore.instance
         .collection('notifications')
+        .where('createdBy', isEqualTo: user.uid)
         .where('isFixed', isEqualTo: true)
         .orderBy('timestamp', descending: true)
         .snapshots();
@@ -547,9 +554,21 @@ class NotificationHistoryScreen extends StatelessWidget {
 
   Future<void> _clearHistory(BuildContext context) async {
     try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('User not logged in'),
+            backgroundColor: Colors.red,
+          ),
+        );
+        return;
+      }
+
       final batch = FirebaseFirestore.instance.batch();
       final notifications = await FirebaseFirestore.instance
           .collection('notifications')
+          .where('createdBy', isEqualTo: user.uid)
           .where('isFixed', isEqualTo: true)
           .get();
 

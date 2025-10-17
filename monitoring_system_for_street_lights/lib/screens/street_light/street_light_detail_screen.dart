@@ -1062,17 +1062,24 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
     );
 
     try {
-      // Get document ID
-      final docId = data['id'];
+      // Get document ID - check multiple possible fields
+      final docId = data['id'] ?? data['documentId'] ?? data['lightId'];
+      print('Delete attempt - Document ID: $docId');
+      print('Available data keys: ${data.keys.toList()}');
+      
       if (docId == null || docId.toString().isEmpty) {
-        throw Exception('Document ID not found');
+        throw Exception('Document ID not found in data: ${data.keys.toList()}');
       }
 
+      print('Deleting street light with ID: $docId');
+      
       // Delete from Firestore
       await FirebaseFirestore.instance
           .collection('street_lights')
           .doc(docId.toString())
           .delete();
+          
+      print('Successfully deleted from Firestore: $docId');
 
       // Close loading dialog
       if (Navigator.of(context).canPop()) {

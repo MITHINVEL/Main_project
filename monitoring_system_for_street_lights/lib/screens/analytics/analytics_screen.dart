@@ -77,17 +77,23 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         _loadEnergyPredictions(),
       ]);
 
-      // If no active street lights found, try a fallback (load all street lights)
+      // If no active street lights found, try a fallback (load all user's street lights)
       if (_solarStreetLights.isEmpty) {
-        // Fallback: try loading all street lights without isActive filter
+        // Fallback: try loading all user's street lights without isActive filter
         try {
-          final qs = await FirebaseFirestore.instance
-              .collection('street_lights')
-              .get();
-          _solarStreetLights = qs.docs
-              .map((d) => {...d.data(), 'id': d.id})
-              .toList();
-          print('Fallback loaded ${_solarStreetLights.length} street lights');
+          final user = FirebaseAuth.instance.currentUser;
+          if (user != null) {
+            final qs = await FirebaseFirestore.instance
+                .collection('street_lights')
+                .where('createdBy', isEqualTo: user.uid)
+                .get();
+            _solarStreetLights = qs.docs
+                .map((d) => {...d.data(), 'id': d.id})
+                .toList();
+            print(
+              'Fallback loaded ${_solarStreetLights.length} street lights for user ${user.email}',
+            );
+          }
         } catch (e) {
           print('Fallback fetch error: $e');
         }
@@ -124,9 +130,16 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
 
   Future<void> _loadSolarStreetLights() async {
     try {
-      // Load all street lights for backward compatibility
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        print('No user logged in, cannot load street lights');
+        return;
+      }
+
+      // Load street lights for current user only
       final querySnapshot = await FirebaseFirestore.instance
           .collection('street_lights')
+          .where('createdBy', isEqualTo: user.uid)
           .where('isActive', isEqualTo: true)
           .get();
 
@@ -135,7 +148,9 @@ class _AnalyticsScreenState extends State<AnalyticsScreen>
         return {...data, 'id': doc.id};
       }).toList();
 
-      print('Loaded ${_solarStreetLights.length} solar street lights');
+      print(
+        'Loaded ${_solarStreetLights.length} solar street lights for user ${user.email}',
+      );
     } catch (e) {
       print('Error loading solar street lights: $e');
     }
