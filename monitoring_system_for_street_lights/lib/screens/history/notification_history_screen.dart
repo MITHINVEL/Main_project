@@ -650,10 +650,38 @@ class NotificationHistoryScreen extends StatelessWidget {
 
   Future<void> _deleteHistoryItem(BuildContext context, String docId) async {
     try {
+      print('Attempting to delete notification with ID: $docId');
+
+      // Check if user is authenticated
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) {
+        throw Exception('User not authenticated');
+      }
+
+      // Check if document exists before deletion
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(docId)
+          .get();
+
+      if (!docSnapshot.exists) {
+        throw Exception('Notification not found');
+      }
+
+      // Verify user owns this notification
+      final docData = docSnapshot.data();
+      if (docData != null && docData['createdBy'] != user.uid) {
+        throw Exception('Permission denied - not your notification');
+      }
+
+      // Perform deletion
       await FirebaseFirestore.instance
           .collection('notifications')
           .doc(docId)
           .delete();
+
+      print('Successfully deleted notification: $docId');
+
       if (context.mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
@@ -662,7 +690,7 @@ class NotificationHistoryScreen extends StatelessWidget {
               children: [
                 Icon(Icons.check_circle, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Notification deleted'),
+                Text('Notification deleted successfully'),
               ],
             ),
             backgroundColor: Colors.green,
@@ -673,20 +701,21 @@ class NotificationHistoryScreen extends StatelessWidget {
         );
       }
     } catch (e) {
+      print('Error deleting notification: $e');
       if (context.mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: const Row(
+            content: Row(
               children: [
                 Icon(Icons.error, color: Colors.white),
                 SizedBox(width: 8),
-                Text('Error deleting notification'),
+                Expanded(child: Text('Error deleting: ${e.toString()}')),
               ],
             ),
             backgroundColor: Colors.red,
             behavior: SnackBarBehavior.floating,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 4),
             margin: const EdgeInsets.all(16),
           ),
         );

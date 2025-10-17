@@ -78,9 +78,70 @@ class _DashboardScreenState extends State<DashboardScreen>
     return FirebaseFirestore.instance
         .collection('notifications')
         .where('createdBy', isEqualTo: user.uid)
-        .where('isFixed', isEqualTo: false)
         .snapshots()
-        .map((snapshot) => snapshot.docs.length);
+        .map((snapshot) {
+          print('Total notifications for user: ${snapshot.docs.length}');
+
+          // Apply same logic as notifications screen:
+          // 1. Remove duplicates based on message body and sender
+          final uniqueDocs =
+              <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+          for (final doc in snapshot.docs) {
+            try {
+              final data = doc.data();
+              final from = data['from'] ?? 'Unknown';
+              final body = (data['body'] ?? '').toString().trim();
+              final uniqueKey = '$from|$body';
+
+              if (!uniqueDocs.containsKey(uniqueKey)) {
+                uniqueDocs[uniqueKey] = doc;
+              } else {
+                final existingTimestamp =
+                    uniqueDocs[uniqueKey]!.data()['timestamp'] as Timestamp?;
+                final currentTimestamp = data['timestamp'] as Timestamp?;
+
+                if (currentTimestamp != null && existingTimestamp != null) {
+                  if (currentTimestamp.seconds > existingTimestamp.seconds) {
+                    uniqueDocs[uniqueKey] = doc;
+                  }
+                }
+              }
+            } catch (e) {
+              print('Error processing duplicate for doc ${doc.id}: $e');
+            }
+          }
+
+          final deduplicatedDocs = uniqueDocs.values.toList();
+          print('After deduplication: ${deduplicatedDocs.length}');
+
+          // 2. Filter SMS notifications and related lights
+          final allSmsDocs = deduplicatedDocs.where((doc) {
+            try {
+              final data = doc.data();
+              final related = (data['relatedLights'] as List<dynamic>?) ?? [];
+              final source = (data['source'] ?? '').toString().toLowerCase();
+              return source.startsWith('sms') || related.isNotEmpty;
+            } catch (e) {
+              print('Error filtering SMS doc ${doc.id}: $e');
+              return false;
+            }
+          }).toList();
+
+          print('After SMS filtering: ${allSmsDocs.length}');
+
+          // 3. Filter for pending (not fixed) notifications
+          final pendingDocs = allSmsDocs.where((doc) {
+            try {
+              return !(doc.data()['isFixed'] as bool? ?? false);
+            } catch (e) {
+              print('Error checking isFixed for doc ${doc.id}: $e');
+              return true;
+            }
+          }).toList();
+
+          print('Final pending notifications count: ${pendingDocs.length}');
+          return pendingDocs.length;
+        });
   }
 
   void _handleActionTap(String actionTitle) {
@@ -397,7 +458,7 @@ class _DashboardScreenState extends State<DashboardScreen>
                       child: Icon(
                         Icons.notifications_outlined,
                         color: const Color(0xFF4A5568),
-                        size: 22.sp,
+                        size: 30.sp,
                       ),
                     ),
                     Positioned(
