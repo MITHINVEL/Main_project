@@ -107,7 +107,9 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
         }
 
         if (snapshot.hasError) {
-          return _buildErrorState();
+          // Log the underlying error for easier debugging
+          debugPrint('StreetLightsListStream error: ${snapshot.error}');
+          return _buildErrorState(snapshot.error?.toString());
         }
 
         if (!snapshot.hasData || snapshot.data!.docs.isEmpty) {
@@ -121,8 +123,11 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           padding: EdgeInsets.symmetric(horizontal: 20.w),
           itemCount: filteredLights.length,
           itemBuilder: (context, index) {
-            final lightData =
-                filteredLights[index].data() as Map<String, dynamic>;
+            final doc = filteredLights[index];
+            final lightData = {
+              ...(doc.data() as Map<String, dynamic>),
+              'id': doc.id,
+            };
             return _buildStreetLightCard(lightData, index);
           },
         );
@@ -473,7 +478,7 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
     );
   }
 
-  Widget _buildErrorState() {
+  Widget _buildErrorState([String? errorMessage]) {
     return Center(
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -497,6 +502,20 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
             'Please try again later',
             style: TextStyle(fontSize: 14.sp, color: const Color(0xFF718096)),
           ),
+          if (errorMessage != null) ...[
+            SizedBox(height: 12.h),
+            Padding(
+              padding: EdgeInsets.symmetric(horizontal: 24.w),
+              child: Text(
+                errorMessage,
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: const Color(0xFF718096),
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ),
+          ],
         ],
       ),
     );

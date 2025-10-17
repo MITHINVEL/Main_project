@@ -1017,28 +1017,43 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
   }
 
   Future<void> _deleteStreetLight(BuildContext context) async {
-    // Show loading
+    // Show loading dialog with better styling
     Navigator.of(context).pop(); // Close confirmation dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Center(
+      builder: (context) => Dialog(
+        backgroundColor: Colors.transparent,
         child: Container(
-          padding: EdgeInsets.all(20.w),
+          padding: EdgeInsets.all(24.w),
           decoration: BoxDecoration(
             color: Colors.white,
-            borderRadius: BorderRadius.circular(12.r),
+            borderRadius: BorderRadius.circular(16.r),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.1),
+                blurRadius: 20,
+                offset: const Offset(0, 10),
+              ),
+            ],
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(Colors.red),
+                valueColor: AlwaysStoppedAnimation<Color>(
+                  const Color(0xFF2D3748),
+                ),
+                strokeWidth: 3,
               ),
-              SizedBox(height: 16.h),
+              SizedBox(height: 20.h),
               Text(
-                'Deleting street light...',
-                style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                'Deleting...',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
               ),
             ],
           ),
@@ -1059,28 +1074,56 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
           .doc(docId.toString())
           .delete();
 
-      Navigator.of(context).pop(); // Close loading
-      Navigator.of(context).pop(); // Go back to previous screen
+      // Close loading dialog
+      if (Navigator.of(context).canPop()) {
+        Navigator.of(context).pop(); // Close loading dialog
+      }
 
-      // Show success message on the previous screen
+      // Navigate back to street lights list screen
+      // Pop until we reach the street lights list screen
+      Navigator.of(context).popUntil((route) {
+        // Check if the current route is the street lights list screen
+        return route.settings.name == '/street_lights' ||
+            route.isFirst ||
+            (route.settings.arguments != null &&
+                route.settings.arguments.toString().contains('street_light'));
+      });
+
+      // Show success message
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Row(
             children: [
-              Icon(Icons.check_circle_rounded, color: Colors.white),
+              Container(
+                padding: EdgeInsets.all(4.w),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.2),
+                  borderRadius: BorderRadius.circular(6.r),
+                ),
+                child: Icon(
+                  Icons.check_circle_rounded,
+                  color: Colors.white,
+                  size: 18.sp,
+                ),
+              ),
               SizedBox(width: 12.w),
               Text(
                 'Street light deleted successfully',
-                style: TextStyle(fontSize: 14.sp, fontWeight: FontWeight.w600),
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
               ),
             ],
           ),
-          backgroundColor: Colors.green,
+          backgroundColor: const Color(0xFF10B981),
           behavior: SnackBarBehavior.floating,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12.r),
           ),
           margin: EdgeInsets.all(16.w),
+          duration: const Duration(seconds: 3),
         ),
       );
     } catch (e) {

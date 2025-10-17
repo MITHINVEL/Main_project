@@ -225,7 +225,10 @@ class NotificationsScreen extends StatelessWidget {
                                     MaterialPageRoute(
                                       builder: (context) =>
                                           StreetLightDetailScreen(
-                                            data: docSnapshot.data()!,
+                                            data: {
+                                              ...docSnapshot.data()!,
+                                              'id': docSnapshot.id,
+                                            },
                                           ),
                                     ),
                                   );
