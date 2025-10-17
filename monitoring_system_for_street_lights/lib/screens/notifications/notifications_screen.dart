@@ -4,13 +4,37 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'dart:async';
 import '../street_light/street_light_detail_screen.dart';
 import '../history/notification_history_screen.dart';
 
-class NotificationsScreen extends StatelessWidget {
+class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({super.key, this.showAppBar = true});
 
   final bool showAppBar;
+
+  @override
+  State<NotificationsScreen> createState() => _NotificationsScreenState();
+}
+
+class _NotificationsScreenState extends State<NotificationsScreen> {
+  late StreamController<void> _refreshController;
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshController = StreamController<void>.broadcast();
+  }
+
+  @override
+  void dispose() {
+    _refreshController.close();
+    super.dispose();
+  }
+
+  void _triggerRefresh() {
+    _refreshController.add(null);
+  }
 
   String _formatTimestamp(Timestamp? ts) {
     if (ts == null) return '';
@@ -251,7 +275,9 @@ class NotificationsScreen extends StatelessWidget {
             // Separate pending and fixed notifications
             final pendingDocs = allSmsDocs.where((doc) {
               try {
-                return !(doc.data()['isFixed'] as bool? ?? false);
+                final isFixed = doc.data()['isFixed'] as bool? ?? false;
+                print('Doc ${doc.id}: isFixed = $isFixed');
+                return !isFixed;
               } catch (e) {
                 print('Error checking isFixed for doc ${doc.id}: $e');
                 return true;
@@ -261,6 +287,10 @@ class NotificationsScreen extends StatelessWidget {
             final fixedCount = allSmsDocs.length - pendingDocs.length;
             final totalCount = allSmsDocs.length;
             final pendingCount = pendingDocs.length;
+
+            print(
+              'Total SMS docs: $totalCount, Pending: $pendingCount, Fixed: $fixedCount',
+            );
 
             if (pendingDocs.isEmpty) {
               return ListView(
