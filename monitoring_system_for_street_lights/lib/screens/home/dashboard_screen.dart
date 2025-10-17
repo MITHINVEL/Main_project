@@ -93,17 +93,41 @@ class _DashboardScreenState extends State<DashboardScreen>
               final body = (data['body'] ?? '').toString().trim();
               final uniqueKey = '$from|$body';
 
+              // Keep the latest one if duplicates exist, but prioritize unfixed notifications
               if (!uniqueDocs.containsKey(uniqueKey)) {
                 uniqueDocs[uniqueKey] = doc;
               } else {
+                final existingData = uniqueDocs[uniqueKey]!.data();
                 final existingTimestamp =
-                    uniqueDocs[uniqueKey]!.data()['timestamp'] as Timestamp?;
-                final currentTimestamp = data['timestamp'] as Timestamp?;
+                    existingData['timestamp'] as Timestamp?;
+                final existingIsFixed =
+                    existingData['isFixed'] as bool? ?? false;
 
-                if (currentTimestamp != null && existingTimestamp != null) {
-                  if (currentTimestamp.seconds > existingTimestamp.seconds) {
-                    uniqueDocs[uniqueKey] = doc;
+                final currentTimestamp = data['timestamp'] as Timestamp?;
+                final currentIsFixed = data['isFixed'] as bool? ?? false;
+
+                // Priority logic:
+                // 1. If existing is fixed but current is not, replace with current (unfixed)
+                // 2. If both have same fixed status, keep the latest timestamp
+                // 3. If current is fixed but existing is not, keep existing (unfixed)
+
+                bool shouldReplace = false;
+
+                if (existingIsFixed && !currentIsFixed) {
+                  // Replace fixed with unfixed
+                  shouldReplace = true;
+                } else if (existingIsFixed == currentIsFixed) {
+                  // Same fixed status, check timestamp
+                  if (currentTimestamp != null && existingTimestamp != null) {
+                    if (currentTimestamp.seconds > existingTimestamp.seconds) {
+                      shouldReplace = true;
+                    }
                   }
+                }
+                // If currentIsFixed && !existingIsFixed, keep existing (don't replace)
+
+                if (shouldReplace) {
+                  uniqueDocs[uniqueKey] = doc;
                 }
               }
             } catch (e) {

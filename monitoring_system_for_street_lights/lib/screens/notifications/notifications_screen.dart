@@ -175,18 +175,42 @@ class NotificationsScreen extends StatelessWidget {
                 final body = (data['body'] ?? '').toString().trim();
                 final uniqueKey = '$from|$body'; // Create unique key
 
-                // Keep the latest one if duplicates exist
+                // Keep the latest one if duplicates exist, but prioritize unfixed notifications
                 if (!uniqueDocs.containsKey(uniqueKey)) {
                   uniqueDocs[uniqueKey] = doc;
                 } else {
+                  final existingData = uniqueDocs[uniqueKey]!.data();
                   final existingTimestamp =
-                      uniqueDocs[uniqueKey]!.data()['timestamp'] as Timestamp?;
-                  final currentTimestamp = data['timestamp'] as Timestamp?;
+                      existingData['timestamp'] as Timestamp?;
+                  final existingIsFixed =
+                      existingData['isFixed'] as bool? ?? false;
 
-                  if (currentTimestamp != null && existingTimestamp != null) {
-                    if (currentTimestamp.seconds > existingTimestamp.seconds) {
-                      uniqueDocs[uniqueKey] = doc;
+                  final currentTimestamp = data['timestamp'] as Timestamp?;
+                  final currentIsFixed = data['isFixed'] as bool? ?? false;
+
+                  // Priority logic:
+                  // 1. If existing is fixed but current is not, replace with current (unfixed)
+                  // 2. If both have same fixed status, keep the latest timestamp
+                  // 3. If current is fixed but existing is not, keep existing (unfixed)
+
+                  bool shouldReplace = false;
+
+                  if (existingIsFixed && !currentIsFixed) {
+                    // Replace fixed with unfixed
+                    shouldReplace = true;
+                  } else if (existingIsFixed == currentIsFixed) {
+                    // Same fixed status, check timestamp
+                    if (currentTimestamp != null && existingTimestamp != null) {
+                      if (currentTimestamp.seconds >
+                          existingTimestamp.seconds) {
+                        shouldReplace = true;
+                      }
                     }
+                  }
+                  // If currentIsFixed && !existingIsFixed, keep existing (don't replace)
+
+                  if (shouldReplace) {
+                    uniqueDocs[uniqueKey] = doc;
                   }
                 }
               } catch (e) {
@@ -837,10 +861,63 @@ Future<void> _markNotificationAsFixed(
   bool showSnackBar = true,
 }) async {
   try {
+    print('Marking notification as fixed: $notificationId');
+
+    // First verify the notification exists and user owns it
+    final user = FirebaseAuth.instance.currentUser;
+    if (user == null) {
+      throw Exception('User not authenticated');
+    }
+
+    final docSnapshot = await FirebaseFirestore.instance
+        .collection('notifications')
+        .doc(notificationId)
+        .get();
+
+    if (!docSnapshot.exists) {
+      throw Exception('Notification not found');
+    }
+
+    final data = docSnapshot.data();
+    if (data != null && data['createdBy'] != user.uid) {
+      throw Exception('Permission denied - not your notification');
+    }
+
+    // Check if already fixed
+    if (data != null && data['isFixed'] == true) {
+      print('Notification already marked as fixed');
+      if (showSnackBar && context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: const Row(
+              children: [
+                Icon(Icons.info, color: Colors.white),
+                SizedBox(width: 8),
+                Text('Notification already marked as fixed'),
+              ],
+            ),
+            backgroundColor: Colors.blue,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+      return;
+    }
+
+    // Update the notification to fixed status
     await FirebaseFirestore.instance
         .collection('notifications')
         .doc(notificationId)
-        .update({'isFixed': true, 'fixedAt': FieldValue.serverTimestamp()});
+        .update({
+          'isFixed': true,
+          'fixedAt': FieldValue.serverTimestamp(),
+          'fixedBy': user.uid,
+        });
+
+    print('Successfully marked notification $notificationId as fixed');
 
     if (showSnackBar && context.mounted) {
       // Clear any existing snackbars first
@@ -862,20 +939,21 @@ Future<void> _markNotificationAsFixed(
       );
     }
   } catch (e) {
+    print('Error marking notification as fixed: $e');
     if (showSnackBar && context.mounted) {
       ScaffoldMessenger.of(context).clearSnackBars();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: const Row(
+          content: Row(
             children: [
               Icon(Icons.error, color: Colors.white),
               SizedBox(width: 8),
-              Text('Error marking notification as fixed'),
+              Expanded(child: Text('Error: ${e.toString()}')),
             ],
           ),
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
+          duration: const Duration(seconds: 4),
           margin: const EdgeInsets.all(16),
         ),
       );
