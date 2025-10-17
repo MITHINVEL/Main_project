@@ -202,7 +202,7 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
                           ),
                         )
                       : Icon(
-                          Icons.save_rounded,
+                          Icons.done_outline_rounded,
                           color: isFormChanged ? Colors.white : Colors.white70,
                           size: 22.sp,
                         ),
@@ -270,28 +270,6 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
                           label: 'Street Address',
                           icon: Icons.home_outlined,
                           isRequired: true,
-                        ),
-                        SizedBox(height: 16.h),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: _buildLuxuryTextField(
-                                controller: areaController,
-                                label: 'Area',
-                                icon: Icons.location_city_outlined,
-                                isRequired: false,
-                              ),
-                            ),
-                            SizedBox(width: 16.w),
-                            Expanded(
-                              child: _buildLuxuryTextField(
-                                controller: wardController,
-                                label: 'Ward',
-                                icon: Icons.domain_outlined,
-                                isRequired: false,
-                              ),
-                            ),
-                          ],
                         ),
                       ],
                     ).animate().slideY(
@@ -571,6 +549,57 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
     );
   }
 
+  // Address normalization helper method
+  Map<String, String> _normalizeAddress() {
+    final address = addressController.text.trim();
+    final area = areaController.text.trim();
+    final ward = wardController.text.trim();
+
+    // Split address by commas and clean up
+    List<String> addressParts = address
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    List<String> areaParts = area
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    // Remove duplicates between address and area
+    Set<String> uniqueParts = {};
+    uniqueParts.addAll(addressParts);
+    uniqueParts.addAll(areaParts);
+
+    // Filter out common duplicates (case insensitive)
+    List<String> finalParts = [];
+    Set<String> addedLower = {};
+
+    for (String part in uniqueParts) {
+      String lowerPart = part.toLowerCase();
+      if (!addedLower.contains(lowerPart)) {
+        finalParts.add(part);
+        addedLower.add(lowerPart);
+      }
+    }
+
+    // Reconstruct normalized addresses
+    String normalizedAddress = finalParts.isNotEmpty
+        ? finalParts.first
+        : address;
+    String normalizedArea = finalParts.length > 1
+        ? finalParts.sublist(1).join(', ')
+        : area;
+
+    return {
+      'address': normalizedAddress,
+      'area': normalizedArea,
+      'ward': ward,
+      'formatted': finalParts.join(', '),
+    };
+  }
+
   Future<void> _updateStreetLight() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -590,12 +619,15 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
       final double? lat = double.tryParse(latController.text.trim());
       final double? lng = double.tryParse(lngController.text.trim());
 
+      // Normalize address to prevent duplicates
+      final normalizedAddress = _normalizeAddress();
+
       // Prepare updated data
       final updatedData = {
         'name': nameController.text.trim(),
-        'address': addressController.text.trim(),
-        'area': areaController.text.trim(),
-        'ward': wardController.text.trim(),
+        'address': normalizedAddress['address']!,
+        'area': normalizedAddress['area']!,
+        'ward': normalizedAddress['ward']!,
         'phoneNumber': phoneController.text.trim(),
         'streetLightNumber': streetLightNumberController.text.trim(),
         'latitude': lat ?? 0.0,
@@ -603,11 +635,10 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
         'lastUpdated': FieldValue.serverTimestamp(),
         'coordinates': {'lat': lat ?? 0.0, 'lng': lng ?? 0.0},
         'fullAddress': {
-          'street': addressController.text.trim(),
-          'area': areaController.text.trim(),
-          'ward': wardController.text.trim(),
-          'formatted':
-              '${addressController.text.trim()}, ${areaController.text.trim()}',
+          'street': normalizedAddress['address']!,
+          'area': normalizedAddress['area']!,
+          'ward': normalizedAddress['ward']!,
+          'formatted': normalizedAddress['formatted']!,
         },
       };
 

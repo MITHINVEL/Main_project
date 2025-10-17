@@ -1080,6 +1080,57 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
     );
   }
 
+  // Address normalization helper method
+  Map<String, String> _normalizeAddress() {
+    final address = _addressController.text.trim();
+    final area = _areaController.text.trim();
+    final ward = _wardController.text.trim();
+
+    // Split address by commas and clean up
+    List<String> addressParts = address
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+    List<String> areaParts = area
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    // Remove duplicates between address and area
+    Set<String> uniqueParts = {};
+    uniqueParts.addAll(addressParts);
+    uniqueParts.addAll(areaParts);
+
+    // Filter out common duplicates (case insensitive)
+    List<String> finalParts = [];
+    Set<String> addedLower = {};
+
+    for (String part in uniqueParts) {
+      String lowerPart = part.toLowerCase();
+      if (!addedLower.contains(lowerPart)) {
+        finalParts.add(part);
+        addedLower.add(lowerPart);
+      }
+    }
+
+    // Reconstruct normalized addresses
+    String normalizedAddress = finalParts.isNotEmpty
+        ? finalParts.first
+        : address;
+    String normalizedArea = finalParts.length > 1
+        ? finalParts.sublist(1).join(', ')
+        : area;
+
+    return {
+      'address': normalizedAddress,
+      'area': normalizedArea,
+      'ward': ward,
+      'formatted': finalParts.join(', '),
+    };
+  }
+
   Future<void> _addStreetLight() async {
     if (_formKey.currentState!.validate()) {
       setState(() => _isLoading = true);
@@ -1101,6 +1152,9 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
 
         print('Generated ID: $streetLightId');
 
+        // Normalize address to prevent duplicates
+        final normalizedAddress = _normalizeAddress();
+
         // Prepare street light data
         final streetLightData = {
           'id': streetLightId,
@@ -1108,9 +1162,9 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
           // store GSM identifier and human-readable street light number
           'phoneNumber': _phoneController.text.trim(),
           'streetLightNumber': _streetLightNumberController.text.trim(),
-          'address': _addressController.text.trim(),
-          'area': _areaController.text.trim(),
-          'ward': _wardController.text.trim(),
+          'address': normalizedAddress['address']!,
+          'area': normalizedAddress['area']!,
+          'ward': normalizedAddress['ward']!,
           'latitude': double.tryParse(_latitudeController.text.trim()) ?? 0.0,
           'longitude': double.tryParse(_longitudeController.text.trim()) ?? 0.0,
           'status': _selectedStatus,
@@ -1132,11 +1186,10 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
             'lng': double.tryParse(_longitudeController.text.trim()) ?? 0.0,
           },
           'fullAddress': {
-            'street': _addressController.text.trim(),
-            'area': _areaController.text.trim(),
-            'ward': _wardController.text.trim(),
-            'formatted':
-                '${_addressController.text.trim()}, ${_areaController.text.trim()}',
+            'street': normalizedAddress['address']!,
+            'area': normalizedAddress['area']!,
+            'ward': normalizedAddress['ward']!,
+            'formatted': normalizedAddress['formatted']!,
           },
         };
 

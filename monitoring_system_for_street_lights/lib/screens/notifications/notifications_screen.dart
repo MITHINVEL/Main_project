@@ -26,10 +26,10 @@ class NotificationsScreen extends StatelessWidget {
     }
 
     // Show only notifications for the current user
+    // Removed orderBy to avoid composite index requirement
     return FirebaseFirestore.instance
         .collection('notifications')
         .where('createdBy', isEqualTo: user.uid)
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 
@@ -70,6 +70,27 @@ class NotificationsScreen extends StatelessWidget {
           builder: (context, snapshot) {
             if (snapshot.hasError) {
               print('Firestore Error: ${snapshot.error}');
+
+              // Check if it's a permission error
+              String errorMessage = 'Unable to load notifications';
+              String errorDetails = 'Please check your internet connection';
+
+              if (snapshot.error.toString().contains('permission')) {
+                errorMessage = 'Permission denied';
+                errorDetails =
+                    'Please make sure you are logged in and have proper access rights';
+              } else if (snapshot.error.toString().contains(
+                'failed-precondition',
+              )) {
+                errorMessage = 'Database index required';
+                errorDetails =
+                    'Please contact support to fix the database configuration';
+              } else if (snapshot.error.toString().contains('unavailable')) {
+                errorMessage = 'Service unavailable';
+                errorDetails =
+                    'Firebase service is temporarily unavailable. Please try again later';
+              }
+
               return Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -77,7 +98,7 @@ class NotificationsScreen extends StatelessWidget {
                     Icon(Icons.error_outline, size: 64.sp, color: Colors.red),
                     SizedBox(height: 16.h),
                     Text(
-                      'Unable to load notifications',
+                      errorMessage,
                       style: TextStyle(
                         fontSize: 16.sp,
                         fontWeight: FontWeight.w600,
@@ -86,7 +107,8 @@ class NotificationsScreen extends StatelessWidget {
                     ),
                     SizedBox(height: 8.h),
                     Text(
-                      'Please check your internet connection',
+                      errorDetails,
+                      textAlign: TextAlign.center,
                       style: TextStyle(fontSize: 12.sp, color: Colors.grey),
                     ),
                     SizedBox(height: 16.h),
@@ -143,8 +165,54 @@ class NotificationsScreen extends StatelessWidget {
 
             final allDocs = snapshot.data!.docs;
 
+            // Remove duplicates based on message body and sender
+            final uniqueDocs =
+                <String, QueryDocumentSnapshot<Map<String, dynamic>>>{};
+            for (final doc in allDocs) {
+              try {
+                final data = doc.data();
+                final from = data['from'] ?? 'Unknown';
+                final body = (data['body'] ?? '').toString().trim();
+                final uniqueKey = '$from|$body'; // Create unique key
+
+                // Keep the latest one if duplicates exist
+                if (!uniqueDocs.containsKey(uniqueKey)) {
+                  uniqueDocs[uniqueKey] = doc;
+                } else {
+                  final existingTimestamp =
+                      uniqueDocs[uniqueKey]!.data()['timestamp'] as Timestamp?;
+                  final currentTimestamp = data['timestamp'] as Timestamp?;
+
+                  if (currentTimestamp != null && existingTimestamp != null) {
+                    if (currentTimestamp.seconds > existingTimestamp.seconds) {
+                      uniqueDocs[uniqueKey] = doc;
+                    }
+                  }
+                }
+              } catch (e) {
+                print('Error processing duplicate for doc ${doc.id}: $e');
+              }
+            }
+
+            // Convert back to list and sort by timestamp (newest first)
+            final deduplicatedDocs = uniqueDocs.values.toList();
+            deduplicatedDocs.sort((a, b) {
+              try {
+                final aTimestamp = a.data()['timestamp'] as Timestamp?;
+                final bTimestamp = b.data()['timestamp'] as Timestamp?;
+
+                if (aTimestamp == null && bTimestamp == null) return 0;
+                if (aTimestamp == null) return 1;
+                if (bTimestamp == null) return -1;
+
+                return bTimestamp.compareTo(aTimestamp); // descending
+              } catch (e) {
+                return 0;
+              }
+            });
+
             // Filter SMS notifications and related lights
-            final allSmsDocs = allDocs.where((doc) {
+            final allSmsDocs = deduplicatedDocs.where((doc) {
               try {
                 final data = doc.data();
                 final related = (data['relatedLights'] as List<dynamic>?) ?? [];
@@ -815,19 +883,11 @@ Future<void> _markNotificationAsFixed(
   }
 }
 
-// Method to delete all notifications for the current user
+// Method to delete all notifications for current user
 Future<void> _deleteAllNotifications(BuildContext context) async {
   try {
     final user = FirebaseAuth.instance.currentUser;
-    if (user == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('User not logged in'),
-          backgroundColor: Colors.red,
-        ),
-      );
-      return;
-    }
+    if (user == null) return;
 
     final batch = FirebaseFirestore.instance.batch();
     final notifications = await FirebaseFirestore.instance

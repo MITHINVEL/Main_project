@@ -43,16 +43,42 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
     }
   }
 
+  // Helper method to normalize address for display
+  String _normalizeAddressForDisplay(String address) {
+    if (address.isEmpty) return address;
+
+    // Split by commas and clean up
+    List<String> parts = address
+        .split(',')
+        .map((part) => part.trim())
+        .where((part) => part.isNotEmpty)
+        .toList();
+
+    // Remove duplicates (case insensitive)
+    List<String> uniqueParts = [];
+    Set<String> addedLower = {};
+
+    for (String part in parts) {
+      String lowerPart = part.toLowerCase();
+      if (!addedLower.contains(lowerPart)) {
+        uniqueParts.add(part);
+        addedLower.add(lowerPart);
+      }
+    }
+
+    return uniqueParts.join(', ');
+  }
+
   @override
   Widget build(BuildContext context) {
     final name = data['name'] ?? 'Street Light';
-    final address =
+    final rawAddress =
         data['fullAddress'] != null && data['fullAddress']['formatted'] != null
         ? data['fullAddress']['formatted']
         : (data['address'] ?? 'No address');
+    final address = _normalizeAddressForDisplay(rawAddress);
     final phone = data['phoneNumber'] ?? '';
-    final area = data['area'] ?? '';
-    final ward = data['ward'] ?? '';
+
     final lat =
         (data['latitude'] ?? data['coordinates']?['lat'])?.toDouble() ?? 0.0;
     final lng =
@@ -74,7 +100,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
         slivers: [
           // Simple App Bar
           SliverAppBar(
-            expandedHeight: 60,
+            expandedHeight: 70,
             floating: false,
             pinned: true,
             elevation: 0,
@@ -86,17 +112,13 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                   end: Alignment.bottomCenter,
                   colors: [Color(0xFF2D3748), Color(0xFF4A5568)],
                 ),
-                borderRadius: BorderRadius.only(
-                  bottomLeft: Radius.circular(24),
-                  bottomRight: Radius.circular(24),
-                ),
               ),
               child: FlexibleSpaceBar(
                 title: Text(
                   name,
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 20.sp,
+                    color: const Color.fromRGBO(255, 255, 255, 1),
+                    fontSize: 13.sp,
                     fontWeight: FontWeight.w700,
                     letterSpacing: 0.5,
                     shadows: [
@@ -107,9 +129,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                       ),
                     ],
                   ),
-                ).animate().fadeIn(duration: 800.ms).slideX(),
-                centerTitle: true,
-                titlePadding: EdgeInsets.only(bottom: 16.h),
+                ),
               ),
             ),
             leading: Container(
@@ -197,8 +217,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                   // Location Details Card
                   _buildLocationDetailsCard(
                     address: address,
-                    area: area,
-                    ward: ward,
+
                     lat: lat,
                     lng: lng,
                     gsmNumber: gsmNumber,
@@ -320,34 +339,15 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                       ),
                     ),
                     SizedBox(height: 8.h),
-                    Container(
-                      padding: EdgeInsets.symmetric(
-                        horizontal: 12.w,
-                        vertical: 6.h,
+                    Text(
+                      address.isNotEmpty ? address : 'No address',
+                      style: TextStyle(
+                        fontSize: 13.sp,
+                        color: const Color(0xFF4A5568),
+                        fontWeight: FontWeight.w600,
                       ),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            const Color(0xFF667EEA).withOpacity(0.1),
-                            const Color(0xFF764BA2).withOpacity(0.1),
-                          ],
-                        ),
-                        borderRadius: BorderRadius.circular(12.r),
-                        border: Border.all(
-                          color: const Color(0xFF667EEA).withOpacity(0.2),
-                          width: 1,
-                        ),
-                      ),
-                      child: Text(
-                        address.isNotEmpty ? address : 'No address',
-                        style: TextStyle(
-                          fontSize: 13.sp,
-                          color: const Color(0xFF4A5568),
-                          fontWeight: FontWeight.w600,
-                        ),
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
                     ),
                   ],
                 ),
@@ -376,8 +376,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
 
   Widget _buildLocationDetailsCard({
     required String address,
-    required String area,
-    required String ward,
+
     required double lat,
     required double lng,
     required String gsmNumber,
@@ -445,8 +444,11 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                   icon: Icons.sim_card_rounded,
                   label: 'GSM ID',
                   value: gsmNumber.isNotEmpty ? gsmNumber : 'Not Available',
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF11998E), Color(0xFF38EF7D)],
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blue.withOpacity(0.1),
+                      Colors.blue.withOpacity(0.1),
+                    ],
                   ),
                 ),
               ),
@@ -458,8 +460,11 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                   value: streetLightNumber.isNotEmpty
                       ? streetLightNumber
                       : 'Not Set',
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                  gradient: LinearGradient(
+                    colors: [
+                      Colors.blue.withOpacity(0.1),
+                      Colors.blue.withOpacity(0.1),
+                    ],
                   ),
                 ),
               ),
@@ -473,8 +478,11 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
             icon: Icons.location_on_rounded,
             label: 'Full Address',
             value: address.isNotEmpty ? address : 'Address not available',
-            gradient: const LinearGradient(
-              colors: [Color(0xFFFF6B6B), Color(0xFFFFE66D)],
+            gradient: LinearGradient(
+              colors: [
+                Colors.blue.withOpacity(0.1),
+                Colors.blue.withOpacity(0.1),
+              ],
             ),
             isFullWidth: true,
           ),
@@ -482,47 +490,11 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
           SizedBox(height: 16.h),
 
           // Area and Ward Row
-          if (area.isNotEmpty || ward.isNotEmpty)
-            Row(
-              children: [
-                if (area.isNotEmpty)
-                  Expanded(
-                    child: _buildInfoTile(
-                      icon: Icons.domain_rounded,
-                      label: 'Area',
-                      value: area,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFF9D50BB), Color(0xFF6B73FF)],
-                      ),
-                    ),
-                  ),
-                if (area.isNotEmpty && ward.isNotEmpty) SizedBox(width: 16.w),
-                if (ward.isNotEmpty)
-                  Expanded(
-                    child: _buildInfoTile(
-                      icon: Icons.location_city_outlined,
-                      label: 'Ward',
-                      value: ward,
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFF9472), Color(0xFFF2709C)],
-                      ),
-                    ),
-                  ),
-              ],
-            ),
-
-          if (area.isNotEmpty || ward.isNotEmpty) SizedBox(height: 16.h),
 
           // Coordinates
           Container(
             padding: EdgeInsets.all(16.w),
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: [
-                  Colors.indigo.withOpacity(0.05),
-                  Colors.purple.withOpacity(0.05),
-                ],
-              ),
               borderRadius: BorderRadius.circular(16.r),
               border: Border.all(
                 color: Colors.indigo.withOpacity(0.2),
@@ -534,14 +506,17 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                 Container(
                   padding: EdgeInsets.all(8.w),
                   decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    gradient: LinearGradient(
+                      colors: [
+                        Colors.blue.withOpacity(0.1),
+                        Colors.blue.withOpacity(0.1),
+                      ],
                     ),
                     borderRadius: BorderRadius.circular(10.r),
                   ),
                   child: Icon(
                     Icons.gps_fixed_rounded,
-                    color: Colors.white,
+                    color: Colors.blue,
                     size: 18.sp,
                   ),
                 ),
@@ -613,7 +588,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
       decoration: BoxDecoration(
         gradient: LinearGradient(colors: [Colors.white, Colors.grey[50]!]),
         borderRadius: BorderRadius.circular(16.r),
-        border: Border.all(color: Colors.grey.withOpacity(0.1), width: 1),
+        border: Border.all(color: Colors.indigo.withOpacity(0.2), width: 1),
         boxShadow: [
           BoxShadow(
             color: Colors.black.withOpacity(0.03),
@@ -633,7 +608,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                   gradient: gradient,
                   borderRadius: BorderRadius.circular(10.r),
                 ),
-                child: Icon(icon, color: Colors.white, size: 16.sp),
+                child: Icon(icon, color: Colors.blue, size: 16.sp),
               ),
               SizedBox(width: 10.w),
               Text(
@@ -857,7 +832,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
               ),
               style: ElevatedButton.styleFrom(
                 backgroundColor: const Color(0xFF11998E),
-                padding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 24.w),
+                padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 24.w),
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(18.r),
                 ),
@@ -900,7 +875,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                 padding: EdgeInsets.all(10.w),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
-                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    colors: [Color(0xFF667EEA), Color(0xFF667EEA)],
                   ),
                   borderRadius: BorderRadius.circular(12.r),
                 ),
@@ -920,7 +895,7 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
               ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: const Color(0xFF667EEA),
-                padding: EdgeInsets.symmetric(vertical: 18.h, horizontal: 24.w),
+                padding: EdgeInsets.symmetric(vertical: 8.h, horizontal: 24.w),
                 side: BorderSide(
                   color: const Color(0xFF667EEA).withOpacity(0.3),
                   width: 2,
@@ -1066,19 +1041,19 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
       final docId = data['id'] ?? data['documentId'] ?? data['lightId'];
       print('Delete attempt - Document ID: $docId');
       print('Available data keys: ${data.keys.toList()}');
-      
+
       if (docId == null || docId.toString().isEmpty) {
         throw Exception('Document ID not found in data: ${data.keys.toList()}');
       }
 
       print('Deleting street light with ID: $docId');
-      
+
       // Delete from Firestore
       await FirebaseFirestore.instance
           .collection('street_lights')
           .doc(docId.toString())
           .delete();
-          
+
       print('Successfully deleted from Firestore: $docId');
 
       // Close loading dialog

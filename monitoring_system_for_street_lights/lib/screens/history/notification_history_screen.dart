@@ -23,11 +23,11 @@ class NotificationHistoryScreen extends StatelessWidget {
     }
 
     // Show only fixed notifications for the current user
+    // Removed orderBy to avoid composite index requirement
     return FirebaseFirestore.instance
         .collection('notifications')
         .where('createdBy', isEqualTo: user.uid)
         .where('isFixed', isEqualTo: true)
-        .orderBy('timestamp', descending: true)
         .snapshots();
   }
 

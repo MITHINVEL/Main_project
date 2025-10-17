@@ -125,18 +125,18 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
 
         final streetLights = snapshot.data!.docs;
         final filteredLights = _filterStreetLights(streetLights);
-        
+
         // Sort by createdAt on client-side (descending - newest first)
         filteredLights.sort((a, b) {
           final aData = a.data() as Map<String, dynamic>;
           final bData = b.data() as Map<String, dynamic>;
           final aCreatedAt = aData['createdAt'];
           final bCreatedAt = bData['createdAt'];
-          
+
           if (aCreatedAt == null && bCreatedAt == null) return 0;
           if (aCreatedAt == null) return 1; // nulls last
           if (bCreatedAt == null) return -1;
-          
+
           if (aCreatedAt is Timestamp && bCreatedAt is Timestamp) {
             return bCreatedAt.compareTo(aCreatedAt); // descending
           }
