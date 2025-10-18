@@ -992,12 +992,18 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
   }
 
   Future<void> _deleteStreetLight(BuildContext context) async {
-    // Show loading dialog with better styling
-    Navigator.of(context).pop(); // Close confirmation dialog
+    // Store the navigator reference before showing dialog
+    final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    // Close confirmation dialog first
+    navigator.pop();
+
+    // Show loading dialog
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => Dialog(
+      builder: (dialogContext) => Dialog(
         backgroundColor: Colors.transparent,
         child: Container(
           padding: EdgeInsets.all(24.w),
@@ -1057,22 +1063,13 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
       print('Successfully deleted from Firestore: $docId');
 
       // Close loading dialog
-      if (Navigator.of(context).canPop()) {
-        Navigator.of(context).pop(); // Close loading dialog
-      }
+      navigator.pop(); // Close loading dialog
 
-      // Navigate back to street lights list screen
-      // Pop until we reach the street lights list screen
-      Navigator.of(context).popUntil((route) {
-        // Check if the current route is the street lights list screen
-        return route.settings.name == '/street_lights' ||
-            route.isFirst ||
-            (route.settings.arguments != null &&
-                route.settings.arguments.toString().contains('street_light'));
-      });
+      // Navigate back with success result
+      navigator.pop(true); // Return true to indicate successful deletion
 
       // Show success message
-      ScaffoldMessenger.of(context).showSnackBar(
+      messenger.showSnackBar(
         SnackBar(
           content: Row(
             children: [
@@ -1109,19 +1106,32 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
         ),
       );
     } catch (e) {
-      Navigator.of(context).pop(); // Close loading
+      // Close loading dialog
+      navigator.pop(); // Close loading dialog
 
-      ScaffoldMessenger.of(context).showSnackBar(
+      print('Street light deletion error: ${e.toString()}');
+
+      // Provide user-friendly error messages
+      String errorMessage = 'Failed to delete street light';
+      if (e.toString().contains('permission-denied')) {
+        errorMessage =
+            'Permission denied. You can only delete your own street lights.';
+      } else if (e.toString().contains('not-found')) {
+        errorMessage =
+            'Street light not found. It may have been already deleted.';
+      } else if (e.toString().contains('network')) {
+        errorMessage =
+            'Network error. Please check your connection and try again.';
+      }
+
+      messenger.showSnackBar(
         SnackBar(
           content: Row(
             children: [
               Icon(Icons.error_outline, color: Colors.white),
               SizedBox(width: 12.w),
               Expanded(
-                child: Text(
-                  'Failed to delete: ${e.toString()}',
-                  style: TextStyle(fontSize: 14.sp),
-                ),
+                child: Text(errorMessage, style: TextStyle(fontSize: 14.sp)),
               ),
             ],
           ),

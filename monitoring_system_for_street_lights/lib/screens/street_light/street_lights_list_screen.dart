@@ -198,12 +198,19 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           child: Material(
             color: Colors.transparent,
             child: InkWell(
-              onTap: () {
-                Navigator.of(context).push(
+              onTap: () async {
+                final result = await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => StreetLightDetailScreen(data: lightData),
                   ),
                 );
+
+                // If street light was deleted (result == true), refresh the list
+                if (result == true && mounted) {
+                  setState(() {
+                    // This will trigger a rebuild and refresh the stream
+                  });
+                }
               },
               borderRadius: BorderRadius.circular(20.r),
               child: Padding(
