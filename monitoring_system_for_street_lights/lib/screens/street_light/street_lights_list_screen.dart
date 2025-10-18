@@ -4,6 +4,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:intl/intl.dart';
+import 'package:monitoring_system_for_street_lights/screens/street_light/add_street_light_screen.dart';
 import 'street_light_detail_screen.dart';
 
 class StreetLightsListScreen extends StatefulWidget {
@@ -587,7 +588,9 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
           SizedBox(height: 24.h),
           ElevatedButton.icon(
             onPressed: () {
-              Navigator.pushNamed(context, '/add_street_light');
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AddStreetLightScreen()),
+              );
             },
             icon: Icon(Icons.add, size: 20.sp),
             label: Text('Add Street Light', style: TextStyle(fontSize: 16.sp)),
@@ -607,9 +610,11 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
-      onPressed: () {
-        Navigator.pushNamed(context, '/add_street_light');
-      },
+     onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const AddStreetLightScreen()),
+              );
+            },
       backgroundColor: const Color(0xFF667EEA),
       child: Icon(Icons.add, color: Colors.white, size: 28.sp),
     ).animate().scale(duration: 800.ms, delay: 1000.ms);

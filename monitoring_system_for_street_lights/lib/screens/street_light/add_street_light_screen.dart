@@ -96,25 +96,14 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
           storageGranted &&
           notificationGranted &&
           locationGranted) {
-        print('All permissions already granted');
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('All permissions are enabled! ✅'),
-              backgroundColor: Colors.green,
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
+       
         return;
       }
 
       // Force camera permission request if not available
       if (!cameraGranted) {
-        print('=== REQUESTING CAMERA PERMISSION ===');
         PermissionStatus cameraResult = await Permission.camera.request();
-        print('Camera request result: $cameraResult');
-
+    
         if (cameraResult.isGranted) {
           cameraGranted = true;
         } else {

@@ -290,7 +290,8 @@ class _DashboardScreenState extends State<DashboardScreen>
           _buildDashboardContent(),
           _buildAnalyticsContent(),
           const NotificationsScreen(
-            showAppBar: false,
+            showAppBar: true,
+            isEmbeddedInBottomNav: true,
           ), // Embedded notifications screen
           _buildProfileContent(),
         ],

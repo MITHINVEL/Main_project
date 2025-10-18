@@ -9,9 +9,14 @@ import '../street_light/street_light_detail_screen.dart';
 import '../history/notification_history_screen.dart';
 
 class NotificationsScreen extends StatefulWidget {
-  const NotificationsScreen({super.key, this.showAppBar = true});
+  const NotificationsScreen({
+    super.key,
+    this.showAppBar = true,
+    this.isEmbeddedInBottomNav = false,
+  });
 
   final bool showAppBar;
+  final bool isEmbeddedInBottomNav;
 
   @override
   State<NotificationsScreen> createState() => _NotificationsScreenState();
@@ -30,10 +35,6 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   void dispose() {
     _refreshController.close();
     super.dispose();
-  }
-
-  void _triggerRefresh() {
-    _refreshController.add(null);
   }
 
   String _formatTimestamp(Timestamp? ts) {
@@ -61,33 +62,46 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF5F7FB),
-      appBar: AppBar(
-        elevation: 0,
-        centerTitle: true,
-        toolbarHeight: 62.h,
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
-        title: Text(
-          'Fault Notifications',
-          style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
-        ),
-        leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
-        ),
-        flexibleSpace: Container(
-          decoration: BoxDecoration(
-            gradient: const LinearGradient(
-              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-              begin: Alignment.topLeft,
-              end: Alignment.bottomRight,
-            ),
-          ),
-        ),
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(bottom: Radius.circular(28.r)),
-        ),
-      ),
+      appBar: widget.showAppBar
+          ? AppBar(
+              elevation: 0,
+              centerTitle: true,
+              toolbarHeight: 62.h,
+              backgroundColor: Colors.transparent,
+              foregroundColor: Colors.white,
+              title: Text(
+                'Fault Notifications',
+                style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
+              ),
+              leading:
+                  !widget.isEmbeddedInBottomNav &&
+                      Navigator.of(context).canPop()
+                  ? IconButton(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                      },
+                      icon: const Icon(Icons.arrow_back),
+                    )
+                  : null,
+              automaticallyImplyLeading:
+                  !widget.isEmbeddedInBottomNav &&
+                  Navigator.of(context).canPop(),
+              flexibleSpace: Container(
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                ),
+              ),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.vertical(
+                  bottom: Radius.circular(28.r),
+                ),
+              ),
+            )
+          : null,
       body: SafeArea(
         child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
           stream: _buildNotificationsStream(),
@@ -984,65 +998,6 @@ Future<void> _markNotificationAsFixed(
           backgroundColor: Colors.red,
           behavior: SnackBarBehavior.floating,
           duration: const Duration(seconds: 4),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-    }
-  }
-}
-
-// Method to delete all notifications for current user
-Future<void> _deleteAllNotifications(BuildContext context) async {
-  try {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return;
-
-    final batch = FirebaseFirestore.instance.batch();
-    final notifications = await FirebaseFirestore.instance
-        .collection('notifications')
-        .where('createdBy', isEqualTo: user.uid)
-        .where('isFixed', isEqualTo: false)
-        .get();
-
-    for (var doc in notifications.docs) {
-      batch.delete(doc.reference);
-    }
-
-    await batch.commit();
-
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.check_circle, color: Colors.white),
-              SizedBox(width: 8),
-              Text('All notifications deleted successfully'),
-            ],
-          ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
-          margin: const EdgeInsets.all(16),
-        ),
-      );
-    }
-  } catch (e) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(context).clearSnackBars();
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: const Row(
-            children: [
-              Icon(Icons.error, color: Colors.white),
-              SizedBox(width: 8),
-              Text('Error deleting notifications'),
-            ],
-          ),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
-          duration: const Duration(seconds: 2),
           margin: const EdgeInsets.all(16),
         ),
       );
