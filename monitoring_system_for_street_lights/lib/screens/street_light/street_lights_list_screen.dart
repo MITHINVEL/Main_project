@@ -369,36 +369,6 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
                             ],
                           ),
                         ),
-
-                        // Status Badge
-                        Container(
-                          padding: EdgeInsets.symmetric(
-                            horizontal: 12.w,
-                            vertical: 6.h,
-                          ),
-                          decoration: BoxDecoration(
-                            color: statusColor.withOpacity(0.1),
-                            borderRadius: BorderRadius.circular(12.r),
-                            border: Border.all(
-                              color: statusColor.withOpacity(0.3),
-                            ),
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(statusIcon, color: statusColor, size: 12.sp),
-                              SizedBox(width: 4.w),
-                              Text(
-                                status,
-                                style: TextStyle(
-                                  fontSize: 12.sp,
-                                  fontWeight: FontWeight.w600,
-                                  color: statusColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
                       ],
                     ),
 
@@ -610,11 +580,11 @@ class _StreetLightsListScreenState extends State<StreetLightsListScreen> {
 
   Widget _buildFloatingActionButton() {
     return FloatingActionButton(
-     onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const AddStreetLightScreen()),
-              );
-            },
+      onPressed: () {
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const AddStreetLightScreen()));
+      },
       backgroundColor: const Color(0xFF667EEA),
       child: Icon(Icons.add, color: Colors.white, size: 28.sp),
     ).animate().scale(duration: 800.ms, delay: 1000.ms);

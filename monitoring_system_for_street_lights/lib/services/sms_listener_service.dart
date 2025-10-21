@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
 
 /// SMS listener service that can work in mock mode or real platform mode.
 /// To enable real SMS reception on Android, set enablePlatformListener = true
@@ -133,8 +134,16 @@ class SmsListenerService {
         final streetLightData = firstMatch.data();
         final createdBy = streetLightData['createdBy'] ?? '';
 
-        // Save notification document with user association
-        await FirebaseFirestore.instance.collection('notifications').add({
+        // Create a notification document with a stable id so clients can
+        // deduplicate and use the doc id as notificationDocId for local display.
+        final notificationsColl = FirebaseFirestore.instance.collection(
+          'notifications',
+        );
+        final docRef = notificationsColl.doc();
+        final docId = docRef.id;
+
+        final notificationData = {
+          'id': docId,
           'from': normalized,
           'body': message,
           'timestamp': FieldValue.serverTimestamp(),
@@ -142,8 +151,43 @@ class SmsListenerService {
           'relatedLights': matches.map((d) => d.id).toList(),
           'isFixed': false,
           'createdBy': createdBy, // Associate with street light owner
-        });
-        print('SMS notification created for user $createdBy: $message');
+        };
+
+        await docRef.set(notificationData);
+
+        // Show OS-level notification locally on this device so it mirrors the
+        // in-app notification immediately (and mark it shown to avoid dupes).
+        try {
+          // try to include the first matched light's name for a nicer title
+          String? firstLightName;
+          if (matches.isNotEmpty) {
+            firstLightName =
+                (matches.first.data()['name'] ??
+                        matches.first.data()['streetLightNumber'] ??
+                        '')
+                    .toString();
+          }
+
+          await PushNotificationService.displayLocalNotification(
+            title: '📩 New Message',
+            body: message,
+            data: {
+              'type': 'sms_alert',
+              'from': normalized,
+              'relatedLights': matches.map((d) => d.id).toList(),
+              'notificationId': docId,
+              'appName': 'StreetLight Monitor',
+              'lightName': firstLightName ?? '',
+            },
+            notificationDocId: docId,
+          );
+        } catch (e) {
+          print('Error showing local notification for SMS: $e');
+        }
+
+        print(
+          'SMS notification created for user $createdBy (docId=$docId): $message',
+        );
       } else {
         print('No matching street light for number: $normalized');
       }

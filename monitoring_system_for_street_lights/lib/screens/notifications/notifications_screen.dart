@@ -6,7 +6,8 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
 import '../street_light/street_light_detail_screen.dart';
-import '../history/notification_history_screen.dart';
+import '../../services/push_notification_service.dart';
+// ...existing code...
 
 class NotificationsScreen extends StatefulWidget {
   const NotificationsScreen({
@@ -24,6 +25,8 @@ class NotificationsScreen extends StatefulWidget {
 
 class _NotificationsScreenState extends State<NotificationsScreen> {
   late StreamController<void> _refreshController;
+  bool _initialNotificationsLoaded = false;
+  final Set<String> _displayedNotificationIds = {};
 
   @override
   void initState() {
@@ -301,6 +304,59 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             final fixedCount = allSmsDocs.length - pendingDocs.length;
             final totalCount = allSmsDocs.length;
             final pendingCount = pendingDocs.length;
+
+            // Show a local OS notification for any newly added pending document
+            // after the initial snapshot (to avoid showing for existing docs).
+            try {
+              if (!_initialNotificationsLoaded) {
+                // Mark existing docs as already displayed on first load
+                for (final doc in snapshot.data!.docs) {
+                  _displayedNotificationIds.add(doc.id);
+                }
+                _initialNotificationsLoaded = true;
+              } else {
+                for (final change in snapshot.data!.docChanges) {
+                  if (change.type == DocumentChangeType.added) {
+                    final addedId = change.doc.id;
+
+                    // Skip if already handled
+                    if (_displayedNotificationIds.contains(addedId)) continue;
+
+                    // Skip local writes that originated from this device
+                    final changeData = change.doc.data();
+                    final token = changeData?['createdByToken'] as String?;
+                    if (token != null &&
+                        token == PushNotificationService.fcmToken) {
+                      _displayedNotificationIds.add(addedId);
+                      continue;
+                    }
+
+                    // Only show notifications that are in the pending list (UI-visible)
+                    final isInPending = pendingDocs.any((d) => d.id == addedId);
+                    if (!isInPending) continue;
+
+                    // Avoid showing notifications for local uncommitted writes
+                    if (change.doc.metadata.hasPendingWrites) continue;
+
+                    final data = changeData ?? <String, dynamic>{};
+                    final title = (data['title'] ?? data['from'] ?? 'Alert')
+                        .toString();
+                    final body = (data['body'] ?? '').toString();
+
+                    // Fire local notification (do not await to prevent UI jank)
+                    PushNotificationService.displayLocalNotification(
+                      title: title,
+                      body: body,
+                      data: data,
+                    );
+
+                    _displayedNotificationIds.add(addedId);
+                  }
+                }
+              }
+            } catch (e) {
+              print('Error processing new notification changes: $e');
+            }
 
             print(
               'Total SMS docs: $totalCount, Pending: $pendingCount, Fixed: $fixedCount',

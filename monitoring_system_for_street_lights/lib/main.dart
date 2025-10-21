@@ -4,6 +4,8 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:monitoring_system_for_street_lights/screens/home/dashboard_screen.dart';
 import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart';
+import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
+import 'package:monitoring_system_for_street_lights/services/street_light_monitoring_service.dart';
 import 'firebase_options.dart';
 
 void main() async {
@@ -12,9 +14,15 @@ void main() async {
   // Initialize Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
+  // Initialize Push Notification Service
+  await PushNotificationService.initialize();
+
   // Initialize SMS Listener Service with platform listener enabled
   final smsService = SmsListenerService(enablePlatformListener: true);
   await smsService.start();
+
+  // Start Street Light Monitoring Service
+  await StreetLightMonitoringService.startMonitoring();
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([

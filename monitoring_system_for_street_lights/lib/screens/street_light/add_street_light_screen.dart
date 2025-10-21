@@ -1,3 +1,5 @@
+// ignore_for_file: unused_element
+
 import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -6,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
 import 'package:path/path.dart' as path;
 import 'package:permission_handler/permission_handler.dart';
 import 'dart:io';
@@ -96,14 +99,13 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
           storageGranted &&
           notificationGranted &&
           locationGranted) {
-       
         return;
       }
 
       // Force camera permission request if not available
       if (!cameraGranted) {
         PermissionStatus cameraResult = await Permission.camera.request();
-    
+
         if (cameraResult.isGranted) {
           cameraGranted = true;
         } else {
@@ -1192,6 +1194,27 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
             .set(streetLightData);
 
         print('Successfully saved to Firestore!');
+
+        // Show an OS-level notification for this newly added street light
+        // so the mobile device also shows the same alert as the app UI.
+        try {
+          await PushNotificationService.displayLocalNotification(
+            title: '💡 New Street Light Added',
+            body:
+                '${streetLightData['name'] ?? 'Street Light'} added successfully',
+            data: {
+              'type': 'new_street_light',
+              'lightId': streetLightId,
+              'name': streetLightData['name'] ?? '',
+              // include appName so PushNotificationService can compose a nicer title
+              'appName': 'StreetLight Monitor',
+              'lightName': streetLightData['name'] ?? '',
+            },
+            notificationDocId: streetLightId,
+          );
+        } catch (e) {
+          print('Error showing local notification after add: $e');
+        }
 
         if (mounted) {
           // Show success message

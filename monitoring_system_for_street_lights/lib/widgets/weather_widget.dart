@@ -33,13 +33,17 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       _locationName = 'Getting location...';
     });
 
-    try {
-      double lat = 11.3410; // Default Erode coordinates
-      double lon = 77.7172;
-      String locationName =
-          'Erode, Tamil Nadu'; // Default location - district, state format
+    // Default fallback coordinates (Erode, Tamil Nadu)
+    double fallbackLat = 11.3410;
+    double fallbackLon = 77.7172;
+    String fallbackLocationName = 'Erode, Tamil Nadu';
 
-      // Try to get current location
+    double lat = fallbackLat;
+    double lon = fallbackLon;
+    String locationName = fallbackLocationName;
+
+    try {
+      // Try to get current location first
       final position = await LocationService.getCurrentLocation();
       if (position != null) {
         lat = position.latitude;
@@ -60,27 +64,81 @@ class _WeatherWidgetState extends State<WeatherWidget> {
         print('Using default location: $locationName');
       }
 
-      // Fetch weather data (will use demo data)
-      final weather = await WeatherService.getCurrentWeather(lat, lon);
-      final uv = await WeatherService.getUVIndex(lat, lon);
+      // Try to fetch weather data for current/detected location
+      WeatherData? weather;
+      UVData? uv;
+
+      try {
+        weather = await WeatherService.getCurrentWeather(lat, lon);
+        uv = await WeatherService.getUVIndex(lat, lon);
+        print('Successfully loaded weather for coordinates: $lat, $lon');
+      } catch (networkError) {
+        print('Network error loading weather: $networkError');
+
+        // If network fails, try with fallback location (Erode)
+        if (lat != fallbackLat || lon != fallbackLon) {
+          print('Trying fallback location: $fallbackLocationName');
+          try {
+            weather = await WeatherService.getCurrentWeather(
+              fallbackLat,
+              fallbackLon,
+            );
+            uv = await WeatherService.getUVIndex(fallbackLat, fallbackLon);
+            locationName = fallbackLocationName;
+            print('Loaded fallback weather data');
+          } catch (fallbackError) {
+            print('Fallback weather also failed: $fallbackError');
+            // Create demo weather data as last resort
+            weather = _createDemoWeatherData();
+            uv = _createDemoUVData();
+            locationName = fallbackLocationName;
+          }
+        } else {
+          // Already using fallback coordinates, create demo data
+          weather = _createDemoWeatherData();
+          uv = _createDemoUVData();
+        }
+      }
 
       if (mounted) {
         setState(() {
           _currentWeather = weather;
           _uvData = uv;
-
-          _locationName = locationName; // Set the real location name
+          _locationName = locationName;
           _isLoading = false;
         });
       }
     } catch (e) {
+      print('Critical error in weather loading: $e');
+
+      // Last resort: show demo data with default location
       if (mounted) {
         setState(() {
-          _error = 'Failed to load weather data: $e';
+          _currentWeather = _createDemoWeatherData();
+          _uvData = _createDemoUVData();
+          _locationName = fallbackLocationName;
           _isLoading = false;
         });
       }
     }
+  }
+
+  WeatherData _createDemoWeatherData() {
+    return WeatherData(
+      temperature: 28.0,
+      description: 'Partly Cloudy',
+      feelsLike: 30.0,
+      humidity: 65,
+      windSpeed: 2.5,
+      pressure: 1013,
+      icon: '02d',
+      cityName: 'Erode, Tamil Nadu',
+      visibility: 10,
+    );
+  }
+
+  UVData _createDemoUVData() {
+    return UVData(uvIndex: 6.0, dateTime: DateTime.now());
   }
 
   @override
@@ -132,7 +190,7 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           ),
         ],
       ),
-    ).animate().fadeIn(duration: 600.ms);
+    ).animate().fadeIn(duration: 100.ms);
   }
 
   Widget _buildErrorWidget() {

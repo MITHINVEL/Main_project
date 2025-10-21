@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -8,6 +9,7 @@ import '../notifications/notifications_screen.dart';
 import '../profile/profile_screen.dart';
 import '../street_light/add_street_light_screen.dart';
 import '../street_light/street_lights_list_screen.dart';
+import '../analytics/solar_analytics_screen.dart';
 import '../../widgets/weather_widget.dart';
 
 class DashboardScreen extends StatefulWidget {
@@ -282,23 +284,31 @@ class _DashboardScreenState extends State<DashboardScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8F9FA),
-      body: IndexedStack(
-        index: _currentIndex,
-        children: [
-          _buildDashboardContent(),
-          _buildAnalyticsContent(),
-          const NotificationsScreen(
-            showAppBar: true,
-            isEmbeddedInBottomNav: true,
-          ), // Embedded notifications screen
-          _buildProfileContent(),
-        ],
+    // Ensure status bar icons are dark (visible) on light backgrounds
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.dark.copyWith(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
       ),
-      bottomNavigationBar: _buildBottomNavBar(),
-      floatingActionButton: _buildFloatingActionButton(),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      child: Scaffold(
+        backgroundColor: const Color(0xFFF8F9FA),
+        body: IndexedStack(
+          index: _currentIndex,
+          children: [
+            _buildDashboardContent(),
+            const SolarAnalyticsScreen(), // Full analytics screen with solar functionality
+            const NotificationsScreen(
+              showAppBar: true,
+              isEmbeddedInBottomNav: true,
+            ), // Embedded notifications screen
+            _buildProfileContent(),
+          ],
+        ),
+        bottomNavigationBar: _buildBottomNavBar(),
+        floatingActionButton: _buildFloatingActionButton(),
+        floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      ),
     );
   }
 
@@ -327,33 +337,6 @@ class _DashboardScreenState extends State<DashboardScreen>
                   ],
                 ),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildAnalyticsContent() {
-    return SafeArea(
-      child: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(Icons.analytics, size: 64.sp, color: const Color(0xFF667EEA)),
-            SizedBox(height: 16.h),
-            Text(
-              'Analytics',
-              style: TextStyle(
-                fontSize: 24.sp,
-                fontWeight: FontWeight.bold,
-                color: const Color(0xFF2D3748),
-              ),
-            ),
-            SizedBox(height: 8.h),
-            Text(
-              'Coming Soon',
-              style: TextStyle(fontSize: 16.sp, color: const Color(0xFF718096)),
             ),
           ],
         ),
