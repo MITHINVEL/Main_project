@@ -5,8 +5,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'dart:async';
+import 'dart:math';
 import '../street_light/street_light_detail_screen.dart';
 import '../../services/push_notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 // ...existing code...
 
 class NotificationsScreen extends StatefulWidget {
@@ -27,11 +29,23 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   late StreamController<void> _refreshController;
   bool _initialNotificationsLoaded = false;
   final Set<String> _displayedNotificationIds = {};
+  // Locally track notifications marked fixed by this device so we can
+  // optimistically hide them from the UI before Firestore round-trip.
+  final Set<String> _locallyFixedNotificationIds = {};
+  // Track suppressed alert signatures ("from|body") so once the user
+  // marks a given alert signature fixed we don't show equivalent alerts
+  // again on this device.
+  final Set<String> _suppressedSignatures = {};
+  // Cache for related street light documents keyed by their id. This lets
+  // us show the street light name synchronously in the list without
+  // flashing the phone number first.
+  final Map<String, Map<String, dynamic>> _streetLightCache = {};
 
   @override
   void initState() {
     super.initState();
     _refreshController = StreamController<void>.broadcast();
+    _loadSuppressedSignatures();
   }
 
   @override
@@ -44,6 +58,217 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     if (ts == null) return '';
     final dt = ts.toDate();
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  /// Prefetch street_light documents for the provided set of ids and store
+  /// their data in `_streetLightCache` so the UI can synchronously read
+  /// the name/location without per-item async lookups.
+  Future<void> _prefetchStreetLightDocs(Set<String> ids) async {
+    try {
+      final toFetch = ids
+          .where((id) => !_streetLightCache.containsKey(id))
+          .toList();
+      if (toFetch.isEmpty) return;
+
+      final coll = FirebaseFirestore.instance.collection('street_lights');
+      const int chunkSize = 10; // Firestore whereIn limit
+      for (int i = 0; i < toFetch.length; i += chunkSize) {
+        final end = min(i + chunkSize, toFetch.length);
+        final chunk = toFetch.sublist(i, end);
+        final snap = await coll
+            .where(FieldPath.documentId, whereIn: chunk)
+            .get();
+        for (final d in snap.docs) {
+          _streetLightCache[d.id] = d.data();
+        }
+      }
+
+      if (mounted) setState(() {});
+    } catch (e) {
+      print('❌ Error prefetching street lights: $e');
+    }
+  }
+
+  Future<void> _loadSuppressedSignatures() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final list = prefs.getStringList('suppressed_signatures_v1') ?? [];
+      if (list.isNotEmpty && mounted) {
+        setState(() {
+          _suppressedSignatures.addAll(list);
+        });
+      } else {
+        _suppressedSignatures.addAll(list);
+      }
+    } catch (e) {
+      print('Error loading suppressed signatures: $e');
+    }
+  }
+
+  Future<void> _addSuppressedSignatures(Iterable<String> signatures) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final current = prefs.getStringList('suppressed_signatures_v1') ?? [];
+      final merged = current.toSet()..addAll(signatures);
+      await prefs.setStringList('suppressed_signatures_v1', merged.toList());
+      if (mounted) {
+        setState(() {
+          _suppressedSignatures.addAll(signatures);
+        });
+      } else {
+        _suppressedSignatures.addAll(signatures);
+      }
+    } catch (e) {
+      print('Error saving suppressed signatures: $e');
+    }
+  }
+
+  Future<void> _removeSuppressedSignatures(Iterable<String> signatures) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final current = prefs.getStringList('suppressed_signatures_v1') ?? [];
+      final remaining = current.toSet()..removeAll(signatures);
+      await prefs.setStringList('suppressed_signatures_v1', remaining.toList());
+      if (mounted) {
+        setState(() {
+          _suppressedSignatures.removeAll(signatures);
+        });
+      } else {
+        _suppressedSignatures.removeAll(signatures);
+      }
+    } catch (e) {
+      print('Error removing suppressed signatures: $e');
+    }
+  }
+
+  /// Finds other notification document ids that share the same sender/body
+  /// signature as the provided notification and returns both the list of
+  /// matching ids and the signature string. This is used to mark duplicates
+  /// fixed together and to persist suppression keys locally.
+  Future<Map<String, dynamic>> _findDuplicateIdsAndSignatureForNotification(
+    String notificationId,
+  ) async {
+    try {
+      final docRef = FirebaseFirestore.instance
+          .collection('notifications')
+          .doc(notificationId);
+      final docSnapshot = await docRef.get();
+      if (!docSnapshot.exists) {
+        return {
+          'ids': <String>[notificationId],
+          'signature': '',
+        };
+      }
+      final data = docSnapshot.data() ?? {};
+      final from = data['from']?.toString() ?? 'Unknown';
+      final body = (data['body'] ?? '').toString().trim();
+      final signature = '$from|$body';
+
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null)
+        return {
+          'ids': <String>[notificationId],
+          'signature': signature,
+        };
+
+      // Query notifications created by this user and filter locally to
+      // avoid composite index requirements on Firestore.
+      final q = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('createdBy', isEqualTo: user.uid)
+          .get();
+      final matches = <String>[];
+      for (final d in q.docs) {
+        final dData = d.data();
+        final dFrom = dData['from']?.toString() ?? 'Unknown';
+        final dBody = (dData['body'] ?? '').toString().trim();
+        if (dFrom == from && dBody == body) {
+          matches.add(d.id);
+        }
+      }
+
+      if (matches.isEmpty) matches.add(notificationId);
+      return {'ids': matches, 'signature': signature};
+    } catch (e) {
+      print('Error finding duplicates for $notificationId: $e');
+      return {
+        'ids': <String>[notificationId],
+        'signature': '',
+      };
+    }
+  }
+
+  /// Optimistic handler used by UI controls. Adds the notification id to
+  /// the local fixed set (hides it immediately), then calls the real
+  /// Firestore update routine. If the update fails, the local state is
+  /// reverted and an error snackbar is shown.
+  Future<void> _handleMarkAsFixed(
+    String notificationId,
+    BuildContext context, {
+    bool showSnackBar = true,
+  }) async {
+    // Discover duplicates (same sender/body) and the signature used for
+    // de-duplication so we can optimistically hide all of them and persist
+    // a local suppression entry. This prevents the alert from coming back
+    // as another notification document with the same signature.
+    List<String> duplicates = [notificationId];
+    String signature = '';
+    try {
+      final res = await _findDuplicateIdsAndSignatureForNotification(
+        notificationId,
+      );
+      duplicates = List<String>.from(
+        res['ids'] as List<dynamic>? ?? [notificationId],
+      );
+      signature = (res['signature'] as String?) ?? '';
+    } catch (e) {
+      print('Error gathering duplicates for $notificationId: $e');
+      duplicates = [notificationId];
+    }
+
+    // Optimistically hide all matching docs
+    final toAdd = duplicates
+        .where((id) => !_locallyFixedNotificationIds.contains(id))
+        .toList();
+    if (toAdd.isNotEmpty) {
+      setState(() {
+        _locallyFixedNotificationIds.addAll(toAdd);
+      });
+    }
+
+    // Persist the signature suppression so new docs with the same
+    // signature won't be shown on this device.
+    if (signature.isNotEmpty) {
+      await _addSuppressedSignatures([signature]);
+    }
+
+    try {
+      await _markNotificationAsFixed(
+        notificationId,
+        context,
+        showSnackBar: showSnackBar,
+        alsoFixIds: duplicates,
+      );
+    } catch (e) {
+      // Revert optimistic hide on failure
+      if (mounted) {
+        setState(() {
+          _locallyFixedNotificationIds.removeAll(duplicates);
+        });
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to mark as fixed: $e'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
+      // Revert suppressed signature.
+      if (signature.isNotEmpty) {
+        await _removeSuppressedSignatures([signature]);
+      }
+    }
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _buildNotificationsStream() {
@@ -292,6 +517,18 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             // Separate pending and fixed notifications
             final pendingDocs = allSmsDocs.where((doc) {
               try {
+                // Hide any notifications that have been locally marked fixed
+                if (_locallyFixedNotificationIds.contains(doc.id)) return false;
+
+                // Hide notifications that match a locally suppressed
+                // signature (from|body). This prevents alerts the user has
+                // dismissed from coming back as duplicates with new doc ids.
+                final dData = doc.data();
+                final dFrom = dData['from']?.toString() ?? 'Unknown';
+                final dBody = (dData['body'] ?? '').toString().trim();
+                final sig = '$dFrom|$dBody';
+                if (_suppressedSignatures.contains(sig)) return false;
+
                 final isFixed = doc.data()['isFixed'] as bool? ?? false;
                 print('Doc ${doc.id}: isFixed = $isFixed');
                 return !isFixed;
@@ -300,6 +537,24 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 return true;
               }
             }).toList();
+
+            // Prefetch related street light docs so we can show the
+            // street light name immediately in the list (avoid 'Unknown').
+            final relatedIds = <String>{};
+            for (final d in pendingDocs) {
+              try {
+                final related =
+                    (d.data()['relatedLights'] as List<dynamic>?)
+                        ?.cast<String>() ??
+                    [];
+                relatedIds.addAll(related);
+              } catch (_) {}
+            }
+            if (relatedIds.isNotEmpty) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                _prefetchStreetLightDocs(relatedIds);
+              });
+            }
 
             final fixedCount = allSmsDocs.length - pendingDocs.length;
             final totalCount = allSmsDocs.length;
@@ -333,6 +588,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                     // Only show notifications that are in the pending list (UI-visible)
                     final isInPending = pendingDocs.any((d) => d.id == addedId);
+                    // Extra safety: if the signature for this incoming doc is
+                    // suppressed (user already marked that alert signature
+                    // fixed), skip showing a local notification and mark it
+                    // as handled so we don't later try to display it.
+                    final incomingData =
+                        change.doc.data() ?? <String, dynamic>{};
+                    final incomingFrom = (incomingData['from'] ?? 'Unknown')
+                        .toString();
+                    final incomingBody = (incomingData['body'] ?? '')
+                        .toString()
+                        .trim();
+                    final incomingSig = '$incomingFrom|$incomingBody';
+                    if (_suppressedSignatures.contains(incomingSig)) {
+                      _displayedNotificationIds.add(addedId);
+                      continue;
+                    }
                     if (!isInPending) continue;
 
                     // Avoid showing notifications for local uncommitted writes
@@ -392,13 +663,48 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
 
                 final doc = pendingDocs[index - 1];
                 final data = doc.data();
-                final from = data['from'] ?? 'Unknown';
+                final from = (data['from'] ?? '').toString();
                 final body = data['body'] ?? '';
                 final ts = data['timestamp'] as Timestamp?;
                 final isFixed = data['isFixed'] ?? false;
                 final related =
                     (data['relatedLights'] as List<dynamic>?)?.cast<String>() ??
                     [];
+                // Compute a stable display title for the list — prefer any
+                // server-provided lightName/title/name. If missing, try the
+                // cached related street light name. We DO NOT show the raw
+                // phone number in the main list to avoid flicker.
+                String displayTitle;
+                final rawCandidate =
+                    (data['lightName'] ?? data['title'] ?? data['name']);
+                if (rawCandidate != null &&
+                    rawCandidate.toString().trim().isNotEmpty) {
+                  displayTitle = rawCandidate.toString();
+                } else if (related.isNotEmpty) {
+                  final cached = _streetLightCache[related.first];
+                  final cachedName = cached == null
+                      ? null
+                      : (cached['name'] ?? cached['streetLightNumber']);
+                  if (cachedName != null &&
+                      cachedName.toString().trim().isNotEmpty) {
+                    displayTitle = cachedName.toString();
+                  } else {
+                    displayTitle = 'Loading...';
+                  }
+                } else {
+                  displayTitle = 'Alert';
+                }
+
+                // Prepare cached related street light data so the UI can
+                // render name and location synchronously without per-item
+                // async work inside the widget tree.
+                final cachedLight = related.isNotEmpty
+                    ? _streetLightCache[related.first]
+                    : null;
+                final locationStr = cachedLight == null
+                    ? ''
+                    : (cachedLight['location'] ?? cachedLight['address'] ?? '')
+                          .toString();
 
                 return GestureDetector(
                       onTap: () {
@@ -605,7 +911,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           width: double.infinity,
                                           child: ElevatedButton.icon(
                                             onPressed: () async {
-                                              await _markNotificationAsFixed(
+                                              await _handleMarkAsFixed(
                                                 doc.id,
                                                 context,
                                                 showSnackBar: false,
@@ -716,116 +1022,57 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                         MainAxisAlignment.spaceBetween,
                                     children: [
                                       Expanded(
-                                        child: related.isNotEmpty
-                                            ? FutureBuilder<
-                                                DocumentSnapshot<
-                                                  Map<String, dynamic>
-                                                >
-                                              >(
-                                                future: FirebaseFirestore
-                                                    .instance
-                                                    .collection('street_lights')
-                                                    .doc(related.first)
-                                                    .get(),
-                                                builder: (context, snapshot) {
-                                                  if (!snapshot.hasData) {
-                                                    return Text(
-                                                      from,
-                                                      maxLines: 1,
-                                                      overflow:
-                                                          TextOverflow.ellipsis,
-                                                      style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.w700,
-                                                        fontSize: 14.sp,
-                                                        color: const Color(
-                                                          0xFF1A202C,
-                                                        ),
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            // Stable display title: prefer server-provided
+                                            // names; do not show raw phone number here.
+                                            Text(
+                                              displayTitle,
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w700,
+                                                fontSize: 14.sp,
+                                                color: const Color(0xFF1A202C),
+                                              ),
+                                            ),
+                                            if (locationStr.isNotEmpty) ...[
+                                              Padding(
+                                                padding: EdgeInsets.only(
+                                                  top: 4.h,
+                                                ),
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.location_on,
+                                                      size: 12.sp,
+                                                      color: const Color(
+                                                        0xFF718096,
                                                       ),
-                                                    );
-                                                  }
-
-                                                  final lightData = snapshot
-                                                      .data
-                                                      ?.data();
-                                                  final lightName =
-                                                      lightData?['name'] ??
-                                                      from;
-                                                  final location =
-                                                      lightData?['location'] ??
-                                                      lightData?['address'] ??
-                                                      '';
-
-                                                  return Column(
-                                                    crossAxisAlignment:
-                                                        CrossAxisAlignment
-                                                            .start,
-                                                    children: [
-                                                      Text(
-                                                        lightName,
+                                                    ),
+                                                    SizedBox(width: 4.w),
+                                                    Expanded(
+                                                      child: Text(
+                                                        locationStr,
                                                         maxLines: 1,
                                                         overflow: TextOverflow
                                                             .ellipsis,
                                                         style: TextStyle(
-                                                          fontWeight:
-                                                              FontWeight.w700,
-                                                          fontSize: 14.sp,
+                                                          fontSize: 12.sp,
                                                           color: const Color(
-                                                            0xFF1A202C,
+                                                            0xFF718096,
                                                           ),
                                                         ),
                                                       ),
-                                                      if (location
-                                                          .isNotEmpty) ...[
-                                                        SizedBox(height: 2.h),
-                                                        Row(
-                                                          children: [
-                                                            Icon(
-                                                              Icons.location_on,
-                                                              size: 12.sp,
-                                                              color:
-                                                                  const Color(
-                                                                    0xFF718096,
-                                                                  ),
-                                                            ),
-                                                            SizedBox(
-                                                              width: 2.w,
-                                                            ),
-                                                            Expanded(
-                                                              child: Text(
-                                                                location,
-                                                                maxLines: 1,
-                                                                overflow:
-                                                                    TextOverflow
-                                                                        .ellipsis,
-                                                                style: TextStyle(
-                                                                  fontSize:
-                                                                      12.sp,
-                                                                  color: const Color(
-                                                                    0xFF718096,
-                                                                  ),
-                                                                ),
-                                                              ),
-                                                            ),
-                                                          ],
-                                                        ),
-                                                      ],
-                                                    ],
-                                                  );
-                                                },
-                                              )
-                                            : Text(
-                                                from,
-                                                maxLines: 1,
-                                                overflow: TextOverflow.ellipsis,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w700,
-                                                  fontSize: 14.sp,
-                                                  color: const Color(
-                                                    0xFF1A202C,
-                                                  ),
+                                                    ),
+                                                  ],
                                                 ),
                                               ),
+                                            ],
+                                          ],
+                                        ),
                                       ),
                                       SizedBox(width: 8.w),
                                       Row(
@@ -844,7 +1091,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                               ),
                                               onSelected: (value) {
                                                 if (value == 'mark_fixed') {
-                                                  _markNotificationAsFixed(
+                                                  _handleMarkAsFixed(
                                                     doc.id,
                                                     context,
                                                   );
@@ -959,6 +1206,7 @@ Future<void> _markNotificationAsFixed(
   String notificationId,
   BuildContext context, {
   bool showSnackBar = true,
+  List<String>? alsoFixIds,
 }) async {
   try {
     print('Marking notification as fixed: $notificationId');
@@ -969,10 +1217,10 @@ Future<void> _markNotificationAsFixed(
       throw Exception('User not authenticated');
     }
 
-    final docSnapshot = await FirebaseFirestore.instance
+    final docRef = FirebaseFirestore.instance
         .collection('notifications')
-        .doc(notificationId)
-        .get();
+        .doc(notificationId);
+    final docSnapshot = await docRef.get();
 
     if (!docSnapshot.exists) {
       throw Exception('Notification not found');
@@ -983,7 +1231,7 @@ Future<void> _markNotificationAsFixed(
       throw Exception('Permission denied - not your notification');
     }
 
-    // Check if already fixed
+    // If already fixed, show info and return
     if (data != null && data['isFixed'] == true) {
       print('Notification already marked as fixed');
       if (showSnackBar && context.mounted) {
@@ -1007,17 +1255,58 @@ Future<void> _markNotificationAsFixed(
       return;
     }
 
-    // Update the notification to fixed status
-    await FirebaseFirestore.instance
-        .collection('notifications')
-        .doc(notificationId)
-        .update({
-          'isFixed': true,
-          'fixedAt': FieldValue.serverTimestamp(),
-          'fixedBy': user.uid,
-        });
+    // Determine which documents to mark fixed: the provided id plus any
+    // duplicates (other docs with the same from/body signature). If
+    // duplicates were discovered by the caller pass them in; otherwise
+    // compute them here by scanning the user's notifications.
+    final idsToFix = <String>{notificationId};
+    if (alsoFixIds != null && alsoFixIds.isNotEmpty) {
+      idsToFix.addAll(alsoFixIds);
+    } else {
+      try {
+        final from = data?['from']?.toString() ?? 'Unknown';
+        final body = (data?['body'] ?? '').toString().trim();
+        final q = await FirebaseFirestore.instance
+            .collection('notifications')
+            .where('createdBy', isEqualTo: user.uid)
+            .get();
+        for (final d in q.docs) {
+          final dData = d.data();
+          final dFrom = dData['from']?.toString() ?? 'Unknown';
+          final dBody = (dData['body'] ?? '').toString().trim();
+          if (dFrom == from && dBody == body) {
+            idsToFix.add(d.id);
+          }
+        }
+      } catch (e) {
+        print('Error enumerating duplicate notifications: $e');
+      }
+    }
 
-    print('Successfully marked notification $notificationId as fixed');
+    // Batch-update all matched documents so the fix is permanent across
+    // copies/duplicates and other devices.
+    final batch = FirebaseFirestore.instance.batch();
+    for (final id in idsToFix) {
+      final r = FirebaseFirestore.instance.collection('notifications').doc(id);
+      batch.update(r, {
+        'isFixed': true,
+        'fixedAt': FieldValue.serverTimestamp(),
+        'fixedBy': user.uid,
+      });
+    }
+    await batch.commit();
+
+    print('Successfully marked notifications as fixed: $idsToFix');
+
+    // Cancel the OS notification(s) so they disappear immediately from the
+    // device's notification center.
+    for (final id in idsToFix) {
+      try {
+        await PushNotificationService.cancelNotificationByDocId(id);
+      } catch (e) {
+        print('Error cancelling OS notification for $id: $e');
+      }
+    }
 
     if (showSnackBar && context.mounted) {
       // Clear any existing snackbars first

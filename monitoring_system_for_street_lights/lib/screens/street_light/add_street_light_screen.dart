@@ -1195,6 +1195,36 @@ class _AddStreetLightScreenState extends State<AddStreetLightScreen>
 
         print('Successfully saved to Firestore!');
 
+        // Create a notifications document so server-side Cloud Function can
+        // push an FCM message to the device even when the app is backgrounded
+        // or terminated. We write a minimal notifications doc and include
+        // userId so the function can send to the user-specific topic.
+        try {
+          final notificationsColl = FirebaseFirestore.instance.collection(
+            'notifications',
+          );
+          final notifRef = notificationsColl.doc();
+          final notifId = notifRef.id;
+
+          final notifData = {
+            'id': notifId,
+            'userId': user.uid,
+            'title': 'New Street Light Added',
+            'body': '${streetLightData['name'] ?? 'Street Light'} added',
+            'type': 'new_street_light',
+            'lightId': streetLightId,
+            'lightName': streetLightData['name'] ?? '',
+            'appName': 'StreetLight Monitor',
+            'timestamp': FieldValue.serverTimestamp(),
+            'read': false,
+          };
+
+          await notifRef.set(notifData);
+          print('Notification doc created (docId=$notifId)');
+        } catch (e) {
+          print('Error creating notifications doc for add: $e');
+        }
+
         // Show an OS-level notification for this newly added street light
         // so the mobile device also shows the same alert as the app UI.
         try {

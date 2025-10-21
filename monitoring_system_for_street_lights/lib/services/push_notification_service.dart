@@ -491,6 +491,29 @@ class PushNotificationService {
   /// Accessor for current FCM token
   static String? get fcmToken => _fcmToken;
 
+  /// Cancel a previously shown OS notification using the Firestore doc id.
+  /// This computes the stable numeric id used when showing notifications.
+  static Future<void> cancelNotificationByDocId(
+    String notificationDocId,
+  ) async {
+    try {
+      if (notificationDocId.isEmpty) return;
+      final notificationId = (notificationDocId.hashCode & 0x7fffffff);
+      await _localNotifications.cancel(notificationId);
+      // Also remove from shown set so future remote/cloud re-sends can still show
+      // if needed; we intentionally keep shown set intact to avoid re-showing
+      // the same historical notification. If you prefer to allow re-showing,
+      // remove the line below.
+      _shownNotificationDocIds.remove(notificationDocId);
+      await _persistShownNotificationIds();
+      print(
+        '✅ Cancelled OS notification (id=$notificationId) for doc $notificationDocId',
+      );
+    } catch (e) {
+      print('❌ Error cancelling notification for doc $notificationDocId: $e');
+    }
+  }
+
   /// Check if notifications are enabled for this app.
   static Future<bool> areNotificationsEnabled() async {
     try {

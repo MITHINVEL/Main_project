@@ -4,15 +4,101 @@ import 'package:flutter/material.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import '../street_light/street_light_detail_screen.dart';
 
-class NotificationHistoryScreen extends StatelessWidget {
+class NotificationHistoryScreen extends StatefulWidget {
   const NotificationHistoryScreen({super.key});
+
+  @override
+  State<NotificationHistoryScreen> createState() =>
+      _NotificationHistoryScreenState();
+}
+
+class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
+  // Selection state
+  final Set<String> _selectedIds = {};
+  bool _selectionMode = false;
+  List<String> _visibleHistoryIds = [];
+  // Whether the initial history load animation has already run. When true
+  // we avoid re-running item animations on each stream update which was
+  // causing a perceived "loading/refreshing" effect.
+  bool _initialHistoryLoaded = false;
 
   String _formatTimestamp(Timestamp? ts) {
     if (ts == null) return '';
     final dt = ts.toDate();
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
+  }
+
+  // Styled delete-selected button. Accepts the build context because the
+  // confirmation flow requires it.
+  Widget _buildDeleteSelectedButton(BuildContext context) {
+    final enabled = _selectedIds.isNotEmpty;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8.w),
+      child: IconButton(
+        tooltip: enabled ? 'Delete selected' : 'Select items to delete',
+        onPressed: enabled ? () => _confirmAndDeleteSelected(context) : null,
+        icon: Container(
+          width: 40.w,
+          height: 40.w,
+          decoration: BoxDecoration(
+            gradient: enabled
+                ? const LinearGradient(
+                    colors: [Color(0xFFE53E3E), Color(0xFFEF4444)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: enabled ? null : Colors.white.withOpacity(0.06),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.delete,
+            color: enabled ? Colors.white : Colors.white70,
+            size: 20.sp,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSelectAllButton() {
+    final allSelected =
+        _selectedIds.length == _visibleHistoryIds.length &&
+        _visibleHistoryIds.isNotEmpty;
+    return Padding(
+      padding: EdgeInsets.symmetric(horizontal: 8.w),
+      child: IconButton(
+        tooltip: allSelected ? 'Deselect all' : 'Select all',
+        onPressed: () {
+          HapticFeedback.lightImpact();
+          _toggleSelectAll();
+        },
+        icon: Container(
+          width: 40.w,
+          height: 40.w,
+          decoration: BoxDecoration(
+            gradient: allSelected
+                ? const LinearGradient(
+                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  )
+                : null,
+            color: allSelected ? null : Colors.white.withOpacity(0.06),
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            allSelected ? Icons.check : Icons.select_all,
+            color: Colors.white,
+            size: 20.sp,
+          ),
+        ),
+      ),
+    );
   }
 
   Stream<QuerySnapshot<Map<String, dynamic>>> _buildHistoryStream() {
@@ -31,6 +117,175 @@ class NotificationHistoryScreen extends StatelessWidget {
         .snapshots();
   }
 
+  void _toggleSelectId(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+      } else {
+        _selectedIds.add(id);
+      }
+      _selectionMode = _selectedIds.isNotEmpty;
+    });
+  }
+
+  void _toggleSelectAll() {
+    setState(() {
+      if (_selectedIds.length == _visibleHistoryIds.length &&
+          _visibleHistoryIds.isNotEmpty) {
+        _selectedIds.clear();
+        _selectionMode = false;
+      } else {
+        _selectedIds.clear();
+        _selectedIds.addAll(_visibleHistoryIds);
+        _selectionMode = true;
+      }
+    });
+  }
+
+  // Provide a nicer select-all button that adapts when everything is
+  // selected. Shows a small gradient circle with an icon so it looks
+  // distinct in the app bar.
+
+  // Wrap the summary card with a one-time animation helper. After the
+  // first successful data load we set `_initialHistoryLoaded` so future
+  // snapshots don't replay the animation.
+  Widget _maybeAnimateSummary(Widget child) {
+    if (_initialHistoryLoaded) return child;
+    return child.animate().fadeIn(duration: 400.ms);
+  }
+
+  // Wrap each item in a one-time slide+fade animation. Delay can be used
+  // to stagger items on the initial load. After the first load we return
+  // the widget directly to avoid re-animation.
+  Widget _maybeAnimateItem(Widget child, {int delayMs = 0}) {
+    if (_initialHistoryLoaded) return child;
+    return child
+        .animate()
+        .slideY(begin: 0.1, duration: 300.ms, delay: (delayMs).ms)
+        .fadeIn(duration: 300.ms);
+  }
+
+  Future<void> _confirmAndDeleteSelected(BuildContext context) async {
+    if (_selectedIds.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        title: const Text('Delete Selected Notifications'),
+        content: Text(
+          'Are you sure you want to delete ${_selectedIds.length} selected notification(s)? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _deleteSelectedItems(context);
+    }
+  }
+
+  Future<void> _deleteSelectedItems(BuildContext context) async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) throw Exception('User not authenticated');
+
+      final batch = FirebaseFirestore.instance.batch();
+      for (final id in _selectedIds) {
+        final ref = FirebaseFirestore.instance
+            .collection('notifications')
+            .doc(id);
+        batch.delete(ref);
+      }
+      await batch.commit();
+
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 8),
+                Text('${_selectedIds.length} notification(s) deleted'),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 2),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+
+      setState(() {
+        _selectedIds.clear();
+        _selectionMode = false;
+      });
+    } catch (e) {
+      print('Error deleting selected notifications: $e');
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error, color: Colors.white),
+                SizedBox(width: 8.w),
+                Expanded(child: Text('Error deleting: ${e.toString()}')),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            duration: const Duration(seconds: 4),
+            margin: const EdgeInsets.all(16),
+          ),
+        );
+      }
+    }
+  }
+
+  Future<void> _confirmAndClearAll(BuildContext context) async {
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        title: const Text('Clear History'),
+        content: const Text(
+          'Are you sure you want to permanently clear your entire fixed notifications history? This cannot be undone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      await _clearHistory(context);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -42,13 +297,29 @@ class NotificationHistoryScreen extends StatelessWidget {
         backgroundColor: Colors.transparent,
         foregroundColor: Colors.white,
         title: Text(
-          'Fixed Notifications History',
+          _selectionMode
+              ? '${_selectedIds.length} selected'
+              : 'Fixed Notifications History',
           style: TextStyle(fontSize: 18.sp, fontWeight: FontWeight.w700),
         ),
         leading: IconButton(
-          onPressed: () => Navigator.of(context).pop(),
-          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (_selectionMode) {
+              setState(() {
+                _selectionMode = false;
+                _selectedIds.clear();
+              });
+            } else {
+              Navigator.of(context).pop();
+            }
+          },
+          icon: Icon(_selectionMode ? Icons.close : Icons.arrow_back),
         ),
+        // Only show select/all and delete actions when user is in selection mode.
+        // The default AppBar should not show the clear/delete icon.
+        actions: _selectionMode
+            ? [_buildSelectAllButton(), _buildDeleteSelectedButton(context)]
+            : [],
 
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -154,6 +425,21 @@ class NotificationHistoryScreen extends StatelessWidget {
               }
             }).toList();
 
+            // Update visible ids and clean up any selections that no longer exist
+            final newVisibleIds = historyDocs.map((d) => d.id).toList();
+            if (!listEquals(newVisibleIds, _visibleHistoryIds)) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _visibleHistoryIds = newVisibleIds;
+                  _selectedIds.removeWhere(
+                    (id) => !_visibleHistoryIds.contains(id),
+                  );
+                  if (_selectedIds.isEmpty) _selectionMode = false;
+                });
+              });
+            }
+
             // Sort client-side by fixedAt (if available) otherwise timestamp.
             historyDocs.sort((a, b) {
               Timestamp? aTs =
@@ -172,72 +458,87 @@ class NotificationHistoryScreen extends StatelessWidget {
               return _buildEmptyHistoryState(context);
             }
 
+            // After the first successful data load schedule a post-frame
+            // callback to mark animations as already shown so subsequent
+            // stream updates don't replay them (which looked like a
+            // continuous loading/refreshing effect).
+            if (!_initialHistoryLoaded) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (!mounted) return;
+                setState(() {
+                  _initialHistoryLoaded = true;
+                });
+              });
+            }
+
             return Column(
               children: [
-                // History stats card
-                Container(
-                  margin: EdgeInsets.all(16.w),
-                  padding: EdgeInsets.all(20.w),
-                  decoration: BoxDecoration(
-                    gradient: const LinearGradient(
-                      colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
-                      begin: Alignment.topLeft,
-                      end: Alignment.bottomRight,
+                // History stats card (animated once)
+                _maybeAnimateSummary(
+                  Container(
+                    margin: EdgeInsets.all(16.w),
+                    padding: EdgeInsets.all(20.w),
+                    decoration: BoxDecoration(
+                      gradient: const LinearGradient(
+                        colors: [Color(0xFF4CAF50), Color(0xFF2E7D32)],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(16.r),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF4CAF50).withOpacity(0.3),
+                          blurRadius: 16,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
                     ),
-                    borderRadius: BorderRadius.circular(16.r),
-                    boxShadow: [
-                      BoxShadow(
-                        color: const Color(0xFF4CAF50).withOpacity(0.3),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      Row(
-                        children: [
-                          Container(
-                            padding: EdgeInsets.all(12.w),
-                            decoration: BoxDecoration(
-                              color: Colors.white.withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(12.r),
+                    child: Column(
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(12.w),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              child: const Icon(
+                                Icons.history,
+                                color: Colors.white,
+                                size: 24,
+                              ),
                             ),
-                            child: const Icon(
-                              Icons.history,
-                              color: Colors.white,
-                              size: 24,
-                            ),
-                          ),
-                          SizedBox(width: 16.w),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  'Fixed Notifications',
-                                  style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 18.sp,
-                                    fontWeight: FontWeight.bold,
+                            SizedBox(width: 16.w),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Fixed Notifications',
+                                    style: TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 18.sp,
+                                      fontWeight: FontWeight.bold,
+                                    ),
                                   ),
-                                ),
-                                SizedBox(height: 4.h),
-                                Text(
-                                  '${historyDocs.length} notifications resolved',
-                                  style: TextStyle(
-                                    color: Colors.white.withOpacity(0.8),
-                                    fontSize: 14.sp,
+                                  SizedBox(height: 4.h),
+                                  Text(
+                                    '${historyDocs.length} notifications resolved',
+                                    style: TextStyle(
+                                      color: Colors.white.withOpacity(0.8),
+                                      fontSize: 14.sp,
+                                    ),
                                   ),
-                                ),
-                              ],
+                                ],
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
-                    ],
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ).animate().fadeIn(duration: 400.ms),
+                ),
 
                 // History list
                 Expanded(
@@ -260,209 +561,233 @@ class NotificationHistoryScreen extends StatelessWidget {
                                 ?.cast<String>() ??
                             [];
 
-                        return GestureDetector(
-                              onTap: () {
-                                if (related.isNotEmpty) {
-                                  FirebaseFirestore.instance
-                                      .collection('street_lights')
-                                      .doc(related.first)
-                                      .get()
-                                      .then((docSnapshot) {
-                                        if (docSnapshot.exists) {
-                                          Navigator.push(
-                                            context,
-                                            MaterialPageRoute(
-                                              builder: (context) =>
-                                                  StreetLightDetailScreen(
-                                                    data: {
-                                                      ...docSnapshot.data()!,
-                                                      'id': docSnapshot.id,
-                                                    },
-                                                  ),
-                                            ),
-                                          );
-                                        }
-                                      })
-                                      .catchError((error) {
-                                        print(
-                                          'Error navigating to detail: $error',
+                        final isSelected = _selectedIds.contains(doc.id);
+
+                        final itemWidget = Material(
+                          type: MaterialType.transparency,
+                          child: InkWell(
+                            onLongPress: () {
+                              // Start selection mode and select this item
+                              HapticFeedback.selectionClick();
+                              setState(() {
+                                _selectionMode = true;
+                                _selectedIds.add(doc.id);
+                              });
+                            },
+                            onTap: () {
+                              if (_selectionMode) {
+                                _toggleSelectId(doc.id);
+                                return;
+                              }
+                              if (related.isNotEmpty) {
+                                FirebaseFirestore.instance
+                                    .collection('street_lights')
+                                    .doc(related.first)
+                                    .get()
+                                    .then((docSnapshot) {
+                                      if (docSnapshot.exists) {
+                                        Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (context) =>
+                                                StreetLightDetailScreen(
+                                                  data: {
+                                                    ...docSnapshot.data()!,
+                                                    'id': docSnapshot.id,
+                                                  },
+                                                ),
+                                          ),
                                         );
-                                      });
-                                }
-                              },
-                              child: Container(
-                                padding: EdgeInsets.all(16.w),
-                                decoration: BoxDecoration(
-                                  color: Colors.white,
-                                  borderRadius: BorderRadius.circular(12.r),
-                                  border: Border.all(
-                                    color: Colors.green.withOpacity(0.2),
-                                    width: 1,
-                                  ),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: Colors.black.withOpacity(0.04),
-                                      blurRadius: 8,
-                                      offset: const Offset(0, 2),
-                                    ),
-                                  ],
+                                      }
+                                    })
+                                    .catchError((error) {
+                                      print(
+                                        'Error navigating to detail: $error',
+                                      );
+                                    });
+                              }
+                            },
+                            child: Container(
+                              padding: EdgeInsets.all(16.w),
+                              decoration: BoxDecoration(
+                                color: isSelected
+                                    ? Colors.green.withOpacity(0.04)
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(12.r),
+                                border: Border.all(
+                                  color: Colors.green.withOpacity(0.12),
+                                  width: 1,
                                 ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 40.w,
-                                          height: 40.w,
-                                          decoration: BoxDecoration(
-                                            color: Colors.green.withOpacity(
-                                              0.1,
-                                            ),
-                                            borderRadius: BorderRadius.circular(
-                                              10.r,
-                                            ),
-                                          ),
-                                          child: const Icon(
-                                            Icons.check_circle,
-                                            color: Colors.green,
-                                            size: 20,
-                                          ),
-                                        ),
-                                        SizedBox(width: 12.w),
-                                        Expanded(
-                                          child: Column(
-                                            crossAxisAlignment:
-                                                CrossAxisAlignment.start,
-                                            children: [
-                                              Text(
-                                                related.isNotEmpty
-                                                    ? 'Street Light Fixed'
-                                                    : from,
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.w600,
-                                                  fontSize: 14.sp,
-                                                  color: const Color(
-                                                    0xFF1A202C,
-                                                  ),
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.black.withOpacity(0.04),
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ],
+                              ),
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Row(
+                                    children: [
+                                      SizedBox(
+                                        width: 40.w,
+                                        height: 40.w,
+                                        child: _selectionMode
+                                            ? Center(
+                                                child: Checkbox(
+                                                  value: isSelected,
+                                                  onChanged: (_) =>
+                                                      _toggleSelectId(doc.id),
                                                 ),
-                                              ),
-                                              SizedBox(height: 2.h),
-                                              if (related.isNotEmpty)
-                                                Text(
-                                                  '${related.length} light(s) resolved',
-                                                  style: TextStyle(
-                                                    fontSize: 12.sp,
-                                                    color: Colors.green,
-                                                    fontWeight: FontWeight.w500,
-                                                  ),
-                                                ),
-                                            ],
-                                          ),
-                                        ),
-                                        Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Container(
-                                              padding: EdgeInsets.symmetric(
-                                                horizontal: 8.w,
-                                                vertical: 4.h,
-                                              ),
-                                              decoration: BoxDecoration(
-                                                color: const Color(0xFFDEF7EC),
-                                                borderRadius:
-                                                    BorderRadius.circular(8.r),
-                                              ),
-                                              child: Text(
-                                                'FIXED',
-                                                style: TextStyle(
-                                                  fontSize: 10.sp,
-                                                  fontWeight: FontWeight.bold,
-                                                  color: const Color(
-                                                    0xFF047857,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                            SizedBox(width: 8.w),
-                                            PopupMenuButton<String>(
-                                              padding: EdgeInsets.zero,
-                                              icon: Icon(
-                                                Icons.more_vert,
-                                                color: Colors.grey[600],
-                                                size: 18.sp,
-                                              ),
-                                              onSelected: (value) async {
-                                                if (value == 'delete') {
-                                                  // Confirm then delete
-                                                  await _confirmAndDelete(
-                                                    context,
-                                                    doc.id,
-                                                  );
-                                                }
-                                              },
-                                              itemBuilder: (context) => [
-                                                PopupMenuItem(
-                                                  value: 'delete',
-                                                  child: Row(
-                                                    children: [
-                                                      Icon(
-                                                        Icons.delete_outline,
-                                                        color: Colors.red,
-                                                        size: 18.sp,
+                                              )
+                                            : Container(
+                                                decoration: BoxDecoration(
+                                                  color: Colors.green
+                                                      .withOpacity(0.1),
+                                                  borderRadius:
+                                                      BorderRadius.circular(
+                                                        10.r,
                                                       ),
-                                                      SizedBox(width: 8.w),
-                                                      const Text('Delete'),
-                                                    ],
-                                                  ),
                                                 ),
-                                              ],
+                                                child: const Icon(
+                                                  Icons.check_circle,
+                                                  color: Colors.green,
+                                                  size: 20,
+                                                ),
+                                              ),
+                                      ),
+                                      SizedBox(width: 12.w),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              related.isNotEmpty
+                                                  ? 'Street Light Fixed'
+                                                  : from,
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.w600,
+                                                fontSize: 14.sp,
+                                                color: const Color(0xFF1A202C),
+                                              ),
                                             ),
+                                            SizedBox(height: 2.h),
+                                            if (related.isNotEmpty)
+                                              Text(
+                                                '${related.length} light(s) resolved',
+                                                style: TextStyle(
+                                                  fontSize: 12.sp,
+                                                  color: Colors.green,
+                                                  fontWeight: FontWeight.w500,
+                                                ),
+                                              ),
                                           ],
                                         ),
-                                      ],
-                                    ),
-                                    SizedBox(height: 12.h),
-                                    Text(
-                                      body,
-                                      style: TextStyle(
-                                        fontSize: 13.sp,
-                                        color: const Color(0xFF4A5568),
-                                        height: 1.4,
                                       ),
-                                      maxLines: 2,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                    SizedBox(height: 12.h),
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.schedule,
-                                          size: 14.sp,
-                                          color: Colors.green,
-                                        ),
-                                        SizedBox(width: 4.w),
-                                        Text(
-                                          'Fixed on ${_formatTimestamp(fixedAt ?? timestamp)}',
-                                          style: TextStyle(
-                                            fontSize: 11.sp,
-                                            color: Colors.green,
-                                            fontWeight: FontWeight.w500,
+                                      Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Container(
+                                            padding: EdgeInsets.symmetric(
+                                              horizontal: 8.w,
+                                              vertical: 4.h,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFFDEF7EC),
+                                              borderRadius:
+                                                  BorderRadius.circular(8.r),
+                                            ),
+                                            child: Text(
+                                              'FIXED',
+                                              style: TextStyle(
+                                                fontSize: 10.sp,
+                                                fontWeight: FontWeight.bold,
+                                                color: const Color(0xFF047857),
+                                              ),
+                                            ),
                                           ),
-                                        ),
-                                      ],
+                                          SizedBox(width: 8.w),
+                                          PopupMenuButton<String>(
+                                            padding: EdgeInsets.zero,
+                                            icon: Icon(
+                                              Icons.more_vert,
+                                              color: Colors.grey[600],
+                                              size: 18.sp,
+                                            ),
+                                            onSelected: (value) async {
+                                              if (value == 'delete') {
+                                                await _confirmAndDelete(
+                                                  context,
+                                                  doc.id,
+                                                );
+                                              }
+                                            },
+                                            itemBuilder: (context) => [
+                                              PopupMenuItem(
+                                                value: 'delete',
+                                                child: Row(
+                                                  children: [
+                                                    Icon(
+                                                      Icons.delete_outline,
+                                                      color: Colors.red,
+                                                      size: 18.sp,
+                                                    ),
+                                                    SizedBox(width: 8.w),
+                                                    const Text('Delete'),
+                                                  ],
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                  SizedBox(height: 12.h),
+                                  Text(
+                                    body,
+                                    style: TextStyle(
+                                      fontSize: 13.sp,
+                                      color: const Color(0xFF4A5568),
+                                      height: 1.4,
                                     ),
-                                  ],
-                                ),
+                                    maxLines: 2,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  SizedBox(height: 12.h),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.schedule,
+                                        size: 14.sp,
+                                        color: Colors.green,
+                                      ),
+                                      SizedBox(width: 4.w),
+                                      Text(
+                                        'Fixed on ${_formatTimestamp(fixedAt ?? timestamp)}',
+                                        style: TextStyle(
+                                          fontSize: 11.sp,
+                                          color: Colors.green,
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
                               ),
-                            )
-                            .animate()
-                            .slideY(
-                              begin: 0.1,
-                              duration: 300.ms,
-                              delay: (index * 50).ms,
-                            )
-                            .fadeIn(duration: 300.ms);
+                            ),
+                          ),
+                        );
+
+                        // Wrap with one-time animation helper to avoid
+                        // replaying on subsequent stream updates.
+                        return _maybeAnimateItem(
+                          itemWidget,
+                          delayMs: index * 50,
+                        );
                       } catch (e) {
                         print('Error building history item $index: $e');
                         return Container(
@@ -596,6 +921,12 @@ class NotificationHistoryScreen extends StatelessWidget {
           ),
         );
       }
+
+      setState(() {
+        _selectedIds.clear();
+        _selectionMode = false;
+        _visibleHistoryIds.clear();
+      });
     } catch (e) {
       if (context.mounted) {
         ScaffoldMessenger.of(context).clearSnackBars();
@@ -700,6 +1031,11 @@ class NotificationHistoryScreen extends StatelessWidget {
           ),
         );
       }
+
+      setState(() {
+        _selectedIds.remove(docId);
+        if (_selectedIds.isEmpty) _selectionMode = false;
+      });
     } catch (e) {
       print('Error deleting notification: $e');
       if (context.mounted) {

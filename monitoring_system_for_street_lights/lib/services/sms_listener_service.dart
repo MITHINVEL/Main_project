@@ -151,6 +151,7 @@ class SmsListenerService {
           'relatedLights': matches.map((d) => d.id).toList(),
           'isFixed': false,
           'createdBy': createdBy, // Associate with street light owner
+          'userId': createdBy,
         };
 
         await docRef.set(notificationData);
