@@ -293,7 +293,7 @@ class _ProfileScreenState extends State<ProfileScreen>
 
                 // Header
                 Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
                       'Profile',
@@ -301,25 +301,6 @@ class _ProfileScreenState extends State<ProfileScreen>
                         fontSize: 28.sp,
                         fontWeight: FontWeight.bold,
                         color: const Color(0xFF2D3748),
-                      ),
-                    ),
-                    Container(
-                      padding: EdgeInsets.all(12.w),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15.r),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 10,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Icon(
-                        Icons.edit,
-                        color: const Color(0xFF667EEA),
-                        size: 20.sp,
                       ),
                     ),
                   ],
@@ -502,7 +483,7 @@ class _ProfileScreenState extends State<ProfileScreen>
                     SizedBox(width: 15.w),
                     Expanded(
                       child: _buildStatCard(
-                        'Uptime',
+                        'System Uptime',
                         '99.2%',
                         Icons.trending_up,
                         const Color(0xFF48BB78),
@@ -630,29 +611,28 @@ class _ProfileScreenState extends State<ProfileScreen>
   Widget _buildMenuSection() {
     final menuItems = [
       {
-        'icon': Icons.settings,
-        'title': 'Settings',
-        'subtitle': 'App preferences and configurations',
-      },
-      {
         'icon': Icons.notifications,
         'title': 'Notifications',
         'subtitle': 'Manage your alerts and reminders',
+        'route': '/profile/notifications',
       },
       {
         'icon': Icons.security,
         'title': 'Privacy & Security',
         'subtitle': 'Account security settings',
+        'route': '/profile/privacy',
       },
       {
         'icon': Icons.help,
         'title': 'Help & Support',
         'subtitle': 'Get help and contact support',
+        'route': '/profile/help',
       },
       {
         'icon': Icons.info,
         'title': 'About',
         'subtitle': 'App version and information',
+        'route': '/profile/about',
       },
     ];
 
@@ -689,7 +669,7 @@ class _ProfileScreenState extends State<ProfileScreen>
               color: Colors.transparent,
               child: InkWell(
                 onTap: () {
-                  // Handle menu item tap
+                  Navigator.pushNamed(context, item['route'] as String);
                 },
                 borderRadius: BorderRadius.circular(20.r),
                 child: Padding(
