@@ -109,8 +109,12 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
 
             // Bottom Section
             Padding(
-              padding: EdgeInsets.all(AppConstants.paddingLarge.w),
+              padding: EdgeInsets.symmetric(
+                horizontal: AppConstants.paddingLarge.w,
+                vertical: AppConstants.paddingMedium.h,
+              ),
               child: Column(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   // Page Indicator
                   SmoothPageIndicator(
@@ -130,7 +134,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     duration: AppConstants.mediumAnimation,
                   ),
 
-                  SizedBox(height: AppConstants.paddingLarge.h),
+                  SizedBox(height: AppConstants.paddingMedium.h),
 
                   // Next/Get Started Button
                   CustomButton(
@@ -168,42 +172,52 @@ class OnboardingPage extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: AppConstants.paddingLarge.w),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          // Animation Container
-          Container(
-            height: 300.h,
-            width: 300.w,
-            decoration: BoxDecoration(
-              gradient: AppConstants.primaryGradient,
-              borderRadius: BorderRadius.circular(AppConstants.radiusXLarge.r),
-              boxShadow: [
-                BoxShadow(
-                  color: AppConstants.primaryColor.withOpacity(0.3),
-                  blurRadius: 20,
-                  offset: const Offset(0, 10),
+          // Animation Container - Made responsive
+          Flexible(
+            child:
+                Container(
+                  constraints: BoxConstraints(
+                    maxHeight: 250.h,
+                    maxWidth: 250.w,
+                  ),
+                  height: 250.h,
+                  width: 250.w,
+                  decoration: BoxDecoration(
+                    gradient: AppConstants.primaryGradient,
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.radiusXLarge.r,
+                    ),
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppConstants.primaryColor.withOpacity(0.3),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Center(
+                    child: Icon(
+                      _getIconForIndex(index),
+                      size: 100.sp,
+                      color: Colors.white,
+                    ),
+                  ),
+                ).animate().scale(
+                  delay: 200.ms,
+                  duration: AppConstants.longAnimation,
+                  curve: Curves.elasticOut,
                 ),
-              ],
-            ),
-            child: Center(
-              child: Icon(
-                _getIconForIndex(index),
-                size: 120.sp,
-                color: Colors.white,
-              ),
-            ),
-          ).animate().scale(
-            delay: 200.ms,
-            duration: AppConstants.longAnimation,
-            curve: Curves.elasticOut,
           ),
 
-          SizedBox(height: AppConstants.paddingXLarge.h),
+          SizedBox(height: AppConstants.paddingLarge.h),
 
           // Title
           Text(
             content.title,
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.displayMedium?.copyWith(
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
               fontWeight: FontWeight.bold,
               color: AppConstants.textPrimary,
             ),
@@ -213,21 +227,26 @@ class OnboardingPage extends StatelessWidget {
             duration: AppConstants.mediumAnimation,
           ),
 
-          SizedBox(height: AppConstants.paddingMedium.h),
+          SizedBox(height: AppConstants.paddingSmall.h),
 
           // Description
-          Text(
-            content.description,
-            textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-              color: AppConstants.textSecondary,
-              height: 1.5,
-            ),
-          ).animate().slideY(
-            begin: 0.5,
-            delay: 500.ms,
-            duration: AppConstants.mediumAnimation,
+          Flexible(
+            child:
+                Text(
+                  content.description,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                    color: AppConstants.textSecondary,
+                    height: 1.4,
+                  ),
+                ).animate().slideY(
+                  begin: 0.5,
+                  delay: 500.ms,
+                  duration: AppConstants.mediumAnimation,
+                ),
           ),
+
+          SizedBox(height: AppConstants.paddingMedium.h),
         ],
       ),
     );

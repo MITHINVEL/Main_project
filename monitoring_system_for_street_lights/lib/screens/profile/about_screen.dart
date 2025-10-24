@@ -342,7 +342,8 @@ class _AboutScreenState extends State<AboutScreen>
     final features = [
       {
         'title': 'Real-time Monitoring',
-        'description': 'Continuous monitoring of street light operational status',
+        'description':
+            'Continuous monitoring of street light operational status',
         'icon': Icons.monitor,
         'color': const Color(0xFF667EEA),
       },
@@ -426,7 +427,7 @@ class _AboutScreenState extends State<AboutScreen>
             builder: (context, constraints) {
               double itemWidth = (constraints.maxWidth - 12.w) / 2;
               double itemHeight = itemWidth * 0.9;
-              
+
               return Wrap(
                 spacing: 12.w,
                 runSpacing: 12.h,
@@ -446,7 +447,9 @@ class _AboutScreenState extends State<AboutScreen>
                           Container(
                             padding: EdgeInsets.all(8.w),
                             decoration: BoxDecoration(
-                              color: (feature['color'] as Color).withOpacity(0.1),
+                              color: (feature['color'] as Color).withOpacity(
+                                0.1,
+                              ),
                               borderRadius: BorderRadius.circular(10.r),
                             ),
                             child: Icon(
@@ -918,7 +921,7 @@ class _AboutScreenState extends State<AboutScreen>
             child: Text(
               '$role: $name',
               style: TextStyle(
-                fontSize: 11.sp, 
+                fontSize: 11.sp,
                 color: const Color(0xFF2D3748),
                 height: 1.4,
               ),
@@ -1079,7 +1082,7 @@ class _AboutScreenState extends State<AboutScreen>
                   (lib) => ListTile(
                     leading: Icon(Icons.code, size: 16.sp),
                     title: Text(
-                      lib, 
+                      lib,
                       style: TextStyle(fontSize: 11.sp),
                       overflow: TextOverflow.ellipsis,
                     ),

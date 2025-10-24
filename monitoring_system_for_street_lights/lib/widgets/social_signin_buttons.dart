@@ -115,9 +115,11 @@ class _GoogleSignInButtonState extends State<GoogleSignInButton>
                     ),
 
                   // Button content
+               
                   Padding(
                     padding: EdgeInsets.symmetric(
                       horizontal: AppConstants.paddingMedium.w,
+                      vertical: AppConstants.paddingSmall.h,
                     ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
