@@ -75,23 +75,23 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
   Future<void> _launchEmail() async {
     final Uri emailUri = Uri(
       scheme: 'mailto',
-      path: 'support@streetlightmonitor.com',
-      query: 'subject=Smart Street Light Support Request',
+      path: 'mithinvelmithinvel@gmail.com',
+      query: 'subject=Smart Street Light Monitor - Support Request',
     );
 
     try {
       if (await canLaunchUrl(emailUri)) {
         await launchUrl(emailUri);
       } else {
-        _showContactDialog();
+        _showWhatsAppFallbackDialog();
       }
     } catch (e) {
-      _showContactDialog();
+      _showWhatsAppFallbackDialog();
     }
   }
 
   Future<void> _launchPhone() async {
-    final Uri phoneUri = Uri(scheme: 'tel', path: '+1-555-LIGHTS');
+    final Uri phoneUri = Uri(scheme: 'tel', path: '+919080971432');
 
     try {
       if (await canLaunchUrl(phoneUri)) {
@@ -99,7 +99,9 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
       } else {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Phone app not available. Please call +1-555-LIGHTS'),
+            content: Text(
+              'Phone app not available. Please call +91 9080971432',
+            ),
             backgroundColor: Colors.orange,
           ),
         );
@@ -114,29 +116,91 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
     }
   }
 
-  void _showContactDialog() {
+  // Launch WhatsApp for live chat
+  Future<void> _launchWhatsApp() async {
+    final String phoneNumber = '+919080971432';
+    final String message =
+        'Hello! I need support with Smart Street Light Monitor app.';
+
+    // Create WhatsApp URL
+    final Uri whatsappUri = Uri.parse(
+      'https://wa.me/$phoneNumber?text=${Uri.encodeComponent(message)}',
+    );
+
+    try {
+      if (await canLaunchUrl(whatsappUri)) {
+        await launchUrl(whatsappUri, mode: LaunchMode.externalApplication);
+      } else {
+        // Fallback: show contact info
+        _showWhatsAppFallbackDialog();
+      }
+    } catch (e) {
+      _showWhatsAppFallbackDialog();
+    }
+  }
+
+  void _showWhatsAppFallbackDialog() {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(20.r),
         ),
-        title: Text('Contact Information'),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFF25D366).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Icon(
+                Icons.chat,
+                color: const Color(0xFF25D366),
+                size: 24.sp,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text('WhatsApp Support'),
+          ],
+        ),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('Email: support@streetlightmonitor.com'),
+            Text('WhatsApp not available. Please contact us directly:'),
+            SizedBox(height: 12.h),
+            Row(
+              children: [
+                Icon(Icons.phone, size: 16.sp, color: const Color(0xFF667EEA)),
+                SizedBox(width: 8.w),
+                Text('+91 9080971432'),
+              ],
+            ),
             SizedBox(height: 8.h),
-            Text('Phone: +1-555-LIGHTS'),
-            SizedBox(height: 8.h),
-            Text('Hours: 24/7 Emergency Support'),
+            Row(
+              children: [
+                Icon(Icons.email, size: 16.sp, color: const Color(0xFF667EEA)),
+                SizedBox(width: 8.w),
+                Text('mithinvelmithinvel@gmail.com'),
+              ],
+            ),
           ],
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _launchPhone();
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF25D366),
+            ),
+            child: Text('Call Now', style: TextStyle(color: Colors.white)),
           ),
         ],
       ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
@@ -288,7 +352,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
                     ),
                     SizedBox(height: 4.h),
                     Text(
-                      'Our technical team is here to help you monitor and maintain your smart street lighting infrastructure.',
+                      'Our technical team is here to help you monitor and maintain your smart street lighting infrastructure. Contact Mithinvel directly for immediate support.',
                       style: TextStyle(
                         fontSize: 14.sp,
                         color: Colors.white.withOpacity(0.9),
@@ -364,10 +428,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
       },
       {
         'title': 'Live Chat',
-        'subtitle': 'Chat with support agent',
+        'subtitle': 'Chat via WhatsApp',
         'icon': Icons.chat,
-        'color': const Color(0xFF667EEA),
-        'action': () => _showChatDialog(),
+        'color': const Color(0xFF25D366),
+        'action': () => _launchWhatsApp(),
       },
       {
         'title': 'User Manual',
@@ -570,10 +634,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
                           ),
                         ),
                         Text(
-                          'Response in 2 hours',
+                          'mithinvelmithinvel@gmail.com',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
-                            fontSize: 10.sp,
+                            fontSize: 9.sp,
                           ),
                         ),
                       ],
@@ -606,10 +670,10 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
                           ),
                         ),
                         Text(
-                          'Available 24/7',
+                          '+91 9080971432',
                           style: TextStyle(
                             color: Colors.white.withOpacity(0.8),
-                            fontSize: 10.sp,
+                            fontSize: 9.sp,
                           ),
                         ),
                       ],
@@ -636,7 +700,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
                 SizedBox(width: 12.w),
                 Expanded(
                   child: Text(
-                    'For urgent system failures, please call our emergency hotline immediately.',
+                    'For urgent system failures, please WhatsApp us at +91 9080971432 immediately.',
                     style: TextStyle(
                       fontSize: 11.sp,
                       color: const Color(0xFF4A5568),
@@ -696,11 +760,18 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
           SizedBox(height: 16.h),
           _buildInfoRow('Application', 'Smart Street Light Monitor'),
           _buildInfoRow('Version', 'v2.1.0 (Build 2025.1)'),
+          _buildInfoRow('Developer', 'Mithinvel'),
+          _buildInfoRow('Contact', '+91 9080971432'),
+          _buildInfoRow('Email', 'mithinvelmithinvel@gmail.com'),
+          _buildInfoRow(
+            'Address',
+            '5/180, C Pudur, B Agraharam po, Dharmapuri-636813',
+          ),
           _buildInfoRow('Platform', 'Flutter + Firebase'),
           _buildInfoRow('Backend', 'Firebase Realtime Database'),
           _buildInfoRow('IoT Protocol', 'MQTT + HTTP/HTTPS'),
           _buildInfoRow('Encryption', 'AES-256 + TLS 1.3'),
-          _buildInfoRow('Last Update', 'January 2025'),
+          _buildInfoRow('Last Update', 'October 2025'),
           _buildInfoRow(
             'Support ID',
             'SLM-2025-${DateTime.now().millisecondsSinceEpoch.toString().substring(8)}',
@@ -768,7 +839,7 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
           ],
         ),
         content: Text(
-          'Please describe the issue you\'re experiencing. Our support team will investigate and provide a solution.',
+          'Please describe the issue you\'re experiencing via email at mithinvelmithinvel@gmail.com or WhatsApp +91 9080971432. Our support team will investigate and provide a solution.',
           style: TextStyle(fontSize: 14.sp, color: const Color(0xFF718096)),
         ),
         actions: [
@@ -783,39 +854,6 @@ class _HelpSupportScreenState extends State<HelpSupportScreen>
             },
             style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text('Send Report', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
-    );
-  }
-
-  void _showChatDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20.r),
-        ),
-        title: Text('Live Chat Support'),
-        content: Text(
-          'Live chat will connect you with a technical support representative. Average wait time is less than 2 minutes.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('Live chat feature coming soon!'),
-                  backgroundColor: Color(0xFF667EEA),
-                ),
-              );
-            },
-            child: Text('Start Chat'),
           ),
         ],
       ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),

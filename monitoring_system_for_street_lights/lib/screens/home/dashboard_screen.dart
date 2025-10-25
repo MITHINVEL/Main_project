@@ -11,6 +11,8 @@ import '../street_light/add_street_light_screen.dart';
 import '../street_light/street_lights_list_screen.dart';
 import '../analytics/solar_analytics_screen.dart';
 import '../../widgets/weather_widget.dart';
+import '../../services/user_service.dart';
+import '../../models/user_model.dart';
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -25,6 +27,8 @@ class _DashboardScreenState extends State<DashboardScreen>
   late AnimationController _statsController;
   int _currentIndex = 0;
   User? _currentUser;
+  final UserService _userService = UserService();
+  UserModel? _userProfile;
 
   @override
   void initState() {
@@ -41,33 +45,98 @@ class _DashboardScreenState extends State<DashboardScreen>
 
     _statsController.forward();
     _getCurrentUser();
-  }
 
-  void _getCurrentUser() {
-    setState(() {
-      _currentUser = FirebaseAuth.instance.currentUser;
+    // Listen for auth state changes to refresh profile
+    FirebaseAuth.instance.authStateChanges().listen((User? user) {
+      if (user != _currentUser) {
+        _getCurrentUser();
+      }
     });
   }
 
-  String _getGreeting() {
-    final hour = DateTime.now().hour;
-    if (hour < 12) {
-      return 'Good Morning';
-    } else if (hour < 17) {
-      return 'Good Afternoon';
-    } else {
-      return 'Good Evening';
+  // Method to refresh user profile (called when returning from profile screen)
+  void _refreshUserProfile() {
+    _getCurrentUser();
+  }
+
+  void _getCurrentUser() async {
+    setState(() {
+      _currentUser = FirebaseAuth.instance.currentUser;
+    });
+
+    // Fetch user profile from Firestore
+    if (_currentUser != null) {
+      try {
+        final userProfile = await _userService.getUserProfile(
+          _currentUser!.uid,
+        );
+        setState(() {
+          _userProfile = userProfile;
+        });
+      } catch (e) {
+        print('Error fetching user profile: $e');
+      }
     }
   }
 
   String _getUserDisplayName() {
-    if (_currentUser?.displayName != null &&
+    // First priority: User profile name from Firestore
+    if (_userProfile?.name != null &&
+        _userProfile!.name.isNotEmpty &&
+        _userProfile!.name != 'User') {
+      return _userProfile!.name;
+    }
+    // Second priority: Firebase Auth display name
+    else if (_currentUser?.displayName != null &&
         _currentUser!.displayName!.isNotEmpty) {
       return _currentUser!.displayName!;
-    } else if (_currentUser?.email != null) {
+    }
+    // Third priority: Email username
+    else if (_currentUser?.email != null) {
       return _currentUser!.email!.split('@').first;
-    } else {
+    }
+    // Fallback
+    else {
       return 'User';
+    }
+  }
+
+  Widget _getProfileImage() {
+    String? imageUrl;
+
+    // First priority: User profile photo URL from Firestore
+    if (_userProfile?.photoUrl != null && _userProfile!.photoUrl!.isNotEmpty) {
+      imageUrl = _userProfile!.photoUrl;
+    }
+    // Second priority: Firebase Auth photo URL
+    else if (_currentUser?.photoURL != null &&
+        _currentUser!.photoURL!.isNotEmpty) {
+      imageUrl = _currentUser!.photoURL;
+    }
+
+    if (imageUrl != null) {
+      return Image.network(
+        imageUrl,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, loadingProgress) {
+          if (loadingProgress == null) return child;
+          return Center(
+            child: CircularProgressIndicator(
+              color: Colors.white,
+              strokeWidth: 2,
+              value: loadingProgress.expectedTotalBytes != null
+                  ? loadingProgress.cumulativeBytesLoaded /
+                        loadingProgress.expectedTotalBytes!
+                  : null,
+            ),
+          );
+        },
+        errorBuilder: (context, error, stackTrace) {
+          return Icon(Icons.person, color: Colors.white, size: 24.sp);
+        },
+      );
+    } else {
+      return Icon(Icons.person, color: Colors.white, size: 24.sp);
     }
   }
 
@@ -345,7 +414,7 @@ class _DashboardScreenState extends State<DashboardScreen>
   }
 
   Widget _buildProfileContent() {
-    return const ProfileScreen();
+    return ProfileScreen(onProfileUpdated: _refreshUserProfile);
   }
 
   Widget _buildCustomAppBar() {
@@ -365,63 +434,65 @@ class _DashboardScreenState extends State<DashboardScreen>
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           // Profile Section
-          Row(
-            children: [
-              Container(
-                width: 45.w,
-                height: 45.h,
-                decoration: BoxDecoration(
-                  gradient: const LinearGradient(
-                    colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
-                  ),
-                  borderRadius: BorderRadius.circular(15.r),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF667EEA).withOpacity(0.3),
-                      blurRadius: 10,
-                      offset: const Offset(0, 5),
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                _currentIndex = 3; // Switch to profile tab
+              });
+            },
+            child: Row(
+              children: [
+                Container(
+                  width: 45.w,
+                  height: 45.h,
+                  decoration: BoxDecoration(
+                    gradient: const LinearGradient(
+                      colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
                     ),
-                  ],
-                ),
-                child: _currentUser?.photoURL != null
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(15.r),
-                        child: Image.network(
-                          _currentUser!.photoURL!,
-                          fit: BoxFit.cover,
-                          errorBuilder: (context, error, stackTrace) {
-                            return Icon(
-                              Icons.person,
-                              color: Colors.white,
-                              size: 24.sp,
-                            );
-                          },
+                    borderRadius: BorderRadius.circular(15.r),
+                    boxShadow: [
+                      BoxShadow(
+                        color: const Color(0xFF667EEA).withOpacity(0.3),
+                        blurRadius: 10,
+                        offset: const Offset(0, 5),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(15.r),
+                    child: _getProfileImage(),
+                  ),
+                ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
+                SizedBox(width: 12.w),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _getUserDisplayName(),
+                      style: TextStyle(
+                        fontSize: 16.sp,
+                        fontWeight: FontWeight.w600,
+                        color: const Color(0xFF2D3748),
+                      ),
+                    ),
+                    if (_userProfile?.email != null)
+                      Text(
+                        _userProfile!.email.length > 20
+                            ? '${_userProfile!.email.substring(0, 20)}...'
+                            : _userProfile!.email,
+                        style: TextStyle(
+                          fontSize: 12.sp,
+                          color: const Color(0xFF718096),
                         ),
-                      )
-                    : Icon(Icons.person, color: Colors.white, size: 24.sp),
-              ).animate().scale(duration: 800.ms, curve: Curves.elasticOut),
-              SizedBox(width: 12.w),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _getGreeting(),
-                    style: TextStyle(
-                      fontSize: 12.sp,
-                      color: const Color(0xFF718096),
-                    ),
-                  ),
-                  Text(
-                    _getUserDisplayName(),
-                    style: TextStyle(
-                      fontSize: 16.sp,
-                      fontWeight: FontWeight.w600,
-                      color: const Color(0xFF2D3748),
-                    ),
-                  ),
-                ],
-              ).animate().slideX(begin: -0.3, duration: 600.ms, delay: 200.ms),
-            ],
+                      ),
+                  ],
+                ).animate().slideX(
+                  begin: -0.3,
+                  duration: 600.ms,
+                  delay: 200.ms,
+                ),
+              ],
+            ),
           ),
 
           // Notification Button

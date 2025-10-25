@@ -4,12 +4,17 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:image_picker/image_picker.dart';
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
 import '../../services/user_service.dart';
 import '../../models/user_model.dart';
 import '../auth/login_screen.dart';
 
 class ProfileScreen extends StatefulWidget {
-  const ProfileScreen({super.key});
+  final VoidCallback? onProfileUpdated;
+
+  const ProfileScreen({super.key, this.onProfileUpdated});
 
   @override
   State<ProfileScreen> createState() => _ProfileScreenState();
@@ -278,10 +283,599 @@ class _ProfileScreenState extends State<ProfileScreen>
     }
   }
 
+  // Show edit options bottom sheet
+  void _showEditOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(24.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(25.r),
+            topRight: Radius.circular(25.r),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              'Edit Profile',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF2D3748),
+              ),
+            ),
+            SizedBox(height: 20.h),
+
+            // Edit Profile Image
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF667EEA).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.camera_alt,
+                  color: const Color(0xFF667EEA),
+                  size: 20.sp,
+                ),
+              ),
+              title: Text(
+                'Change Profile Photo',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              subtitle: Text(
+                'Update your profile picture',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: const Color(0xFF718096),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showImagePickerOptions();
+              },
+            ),
+
+            // Edit Name
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF48BB78).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.person_outline,
+                  color: const Color(0xFF48BB78),
+                  size: 20.sp,
+                ),
+              ),
+              title: Text(
+                'Edit Name',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              subtitle: Text(
+                'Change your display name',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: const Color(0xFF718096),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _showEditNameDialog();
+              },
+            ),
+
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ).animate().slideY(begin: 1, duration: 300.ms),
+    );
+  }
+
+  // Show image picker options
+  void _showImagePickerOptions() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        padding: EdgeInsets.all(24.w),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.only(
+            topLeft: Radius.circular(25.r),
+            topRight: Radius.circular(25.r),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 50.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              'Select Photo',
+              style: TextStyle(
+                fontSize: 20.sp,
+                fontWeight: FontWeight.bold,
+                color: const Color(0xFF2D3748),
+              ),
+            ),
+            SizedBox(height: 20.h),
+
+            // Camera Option
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF667EEA).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.camera_alt,
+                  color: const Color(0xFF667EEA),
+                  size: 20.sp,
+                ),
+              ),
+              title: Text(
+                'Take Photo',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              subtitle: Text(
+                'Use camera to take a new photo',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: const Color(0xFF718096),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.camera);
+              },
+            ),
+
+            // Gallery Option
+            ListTile(
+              leading: Container(
+                padding: EdgeInsets.all(12.w),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF48BB78).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(12.r),
+                ),
+                child: Icon(
+                  Icons.photo_library,
+                  color: const Color(0xFF48BB78),
+                  size: 20.sp,
+                ),
+              ),
+              title: Text(
+                'Choose from Gallery',
+                style: TextStyle(
+                  fontSize: 16.sp,
+                  fontWeight: FontWeight.w600,
+                  color: const Color(0xFF2D3748),
+                ),
+              ),
+              subtitle: Text(
+                'Select from your photo library',
+                style: TextStyle(
+                  fontSize: 12.sp,
+                  color: const Color(0xFF718096),
+                ),
+              ),
+              onTap: () {
+                Navigator.pop(context);
+                _pickImage(ImageSource.gallery);
+              },
+            ),
+
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ).animate().slideY(begin: 1, duration: 300.ms),
+    );
+  }
+
+  // Pick image from camera or gallery
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? pickedFile = await picker.pickImage(
+        source: source,
+        maxWidth: 800,
+        maxHeight: 800,
+        imageQuality: 85,
+      );
+
+      if (pickedFile != null) {
+        // Show loading dialog
+        showDialog(
+          context: context,
+          barrierDismissible: false,
+          builder: (context) => Center(
+            child: Container(
+              padding: EdgeInsets.all(24.w),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20.r),
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(
+                    valueColor: AlwaysStoppedAnimation<Color>(
+                      Color(0xFF667EEA),
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Updating profile photo...',
+                    style: TextStyle(
+                      fontSize: 16.sp,
+                      fontWeight: FontWeight.w600,
+                      color: const Color(0xFF2D3748),
+                    ),
+                  ),
+                ],
+              ),
+            ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+          ),
+        );
+
+        // Upload image and update profile
+        await _updateProfileImage(File(pickedFile.path));
+
+        if (mounted) {
+          Navigator.pop(context); // Close loading dialog
+
+          // Show success message
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('Profile photo updated successfully!'),
+              backgroundColor: const Color(0xFF48BB78),
+              behavior: SnackBarBehavior.floating,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(12.r),
+              ),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog if open
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating profile photo: $e'),
+            backgroundColor: const Color(0xFFE53E3E),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
+  // Update profile image in Firebase
+  Future<void> _updateProfileImage(File imageFile) async {
+    if (_currentUser == null) return;
+
+    try {
+      final uid = _currentUser!.uid;
+
+      // Upload image to Firebase Storage
+      final storageRef = FirebaseStorage.instance
+          .ref()
+          .child('user_photos')
+          .child('${uid}_${DateTime.now().millisecondsSinceEpoch}.jpg');
+
+      final uploadTask = storageRef.putFile(imageFile);
+      final snapshot = await uploadTask.whenComplete(() {});
+
+      // Get download URL
+      final downloadUrl = await snapshot.ref.getDownloadURL();
+
+      // Update Firebase Auth profile (photoURL)
+      await FirebaseAuth.instance.currentUser?.updatePhotoURL(downloadUrl);
+      // Ensure auth user is reloaded
+      await FirebaseAuth.instance.currentUser?.reload();
+      setState(() {
+        _currentUser = FirebaseAuth.instance.currentUser;
+      });
+
+      // Update Firestore user document
+      await _userService.updateUserProfile(
+        uid: uid,
+        updates: {'photoUrl': downloadUrl},
+      );
+
+      // Refresh user data after update
+      await _fetchUserData();
+    } catch (e) {
+      print('Error uploading profile image: $e');
+      rethrow;
+    }
+  }
+
+  // Show edit name dialog
+  void _showEditNameDialog() {
+    final TextEditingController nameController = TextEditingController();
+    nameController.text = _getUserDisplayName();
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20.r),
+        ),
+        title: Row(
+          children: [
+            Container(
+              padding: EdgeInsets.all(8.w),
+              decoration: BoxDecoration(
+                color: const Color(0xFF48BB78).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10.r),
+              ),
+              child: Icon(
+                Icons.person_outline,
+                color: const Color(0xFF48BB78),
+                size: 24.sp,
+              ),
+            ),
+            SizedBox(width: 12.w),
+            Text(
+              'Edit Name',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w600,
+                color: const Color(0xFF2D3748),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nameController,
+              textCapitalization: TextCapitalization.words,
+              decoration: InputDecoration(
+                labelText: 'Display Name',
+                labelStyle: TextStyle(
+                  color: const Color(0xFF718096),
+                  fontSize: 14.sp,
+                ),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: BorderSide(color: Colors.grey[300]!),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12.r),
+                  borderSide: const BorderSide(color: Color(0xFF48BB78)),
+                ),
+                contentPadding: EdgeInsets.symmetric(
+                  horizontal: 16.w,
+                  vertical: 16.h,
+                ),
+              ),
+              maxLength: 50,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                fontSize: 14.sp,
+                color: const Color(0xFF718096),
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [Color(0xFF48BB78), Color(0xFF38A169)],
+              ),
+              borderRadius: BorderRadius.circular(10.r),
+            ),
+            child: TextButton(
+              onPressed: () async {
+                if (nameController.text.trim().isNotEmpty) {
+                  Navigator.of(context).pop();
+                  await _updateUserName(nameController.text.trim());
+                }
+              },
+              child: Text(
+                'Save',
+                style: TextStyle(
+                  fontSize: 14.sp,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+    );
+  }
+
+  // Update user name in Firebase
+  Future<void> _updateUserName(String newName) async {
+    try {
+      // Show loading dialog
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => Center(
+          child: Container(
+            padding: EdgeInsets.all(24.w),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20.r),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const CircularProgressIndicator(
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF48BB78)),
+                ),
+                SizedBox(height: 16.h),
+                Text(
+                  'Updating name...',
+                  style: TextStyle(
+                    fontSize: 16.sp,
+                    fontWeight: FontWeight.w600,
+                    color: const Color(0xFF2D3748),
+                  ),
+                ),
+              ],
+            ),
+          ).animate().scale(duration: 300.ms, curve: Curves.easeOutBack),
+        ),
+      );
+
+      if (_currentUser != null) {
+        final uid = _currentUser!.uid;
+
+        // Update Firebase Auth display name
+        await FirebaseAuth.instance.currentUser?.updateDisplayName(newName);
+        // Ensure auth user is reloaded
+        await FirebaseAuth.instance.currentUser?.reload();
+        setState(() {
+          _currentUser = FirebaseAuth.instance.currentUser;
+        });
+
+        // Update Firestore user document
+        await _userService.updateUserProfile(
+          uid: uid,
+          updates: {'name': newName},
+        );
+
+        // Refresh user data after update
+        await _fetchUserData();
+      }
+
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        // Show success message
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Name updated successfully!'),
+            backgroundColor: const Color(0xFF48BB78),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        Navigator.pop(context); // Close loading dialog
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Error updating name: $e'),
+            backgroundColor: const Color(0xFFE53E3E),
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+          ),
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
+      appBar: AppBar(
+        elevation: 0,
+        centerTitle: true,
+        // Make AppBar visually distinct with a gradient and rounded bottom
+        flexibleSpace: Container(
+          height: 300.h,
+          decoration: BoxDecoration(
+            gradient: const LinearGradient(
+              colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.vertical(bottom: Radius.circular(20.r)),
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(bottom: Radius.circular(20.r)),
+        ),
+        title: Text(
+          'Profile',
+          style: TextStyle(
+            fontSize: 22.sp,
+            fontWeight: FontWeight.bold,
+            color: Colors.white,
+          ),
+        ),
+        actions: [
+          Padding(
+            padding: EdgeInsets.only(right: 12.w),
+            child: GestureDetector(
+              onTap: _showEditOptions,
+              child: Container(
+                padding: EdgeInsets.all(8.w),
+                decoration: BoxDecoration(
+                  color: Colors.white.withOpacity(0.12),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(Icons.edit, color: Colors.white, size: 26.sp),
+              ),
+            ),
+          ),
+        ],
+      ),
       body: CustomPaint(
         painter: ProfileBackgroundPainter(_backgroundController.value),
         child: SafeArea(
@@ -290,23 +884,6 @@ class _ProfileScreenState extends State<ProfileScreen>
             child: Column(
               children: [
                 SizedBox(height: 20.h),
-
-                // Header
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Text(
-                      'Profile',
-                      style: TextStyle(
-                        fontSize: 28.sp,
-                        fontWeight: FontWeight.bold,
-                        color: const Color(0xFF2D3748),
-                      ),
-                    ),
-                  ],
-                ).animate().slideX(begin: -0.3, duration: 600.ms),
-
-                SizedBox(height: 30.h),
 
                 // Profile Card
                 Container(
@@ -380,32 +957,35 @@ class _ProfileScreenState extends State<ProfileScreen>
                           Positioned(
                             bottom: 0,
                             right: 0,
-                            child:
-                                Container(
-                                  padding: EdgeInsets.all(8.w),
-                                  decoration: BoxDecoration(
-                                    gradient: const LinearGradient(
-                                      colors: [
-                                        Color(0xFF48BB78),
-                                        Color(0xFF38A169),
-                                      ],
+                            child: GestureDetector(
+                              onTap: _showImagePickerOptions,
+                              child:
+                                  Container(
+                                    padding: EdgeInsets.all(8.w),
+                                    decoration: BoxDecoration(
+                                      gradient: const LinearGradient(
+                                        colors: [
+                                          Color(0xFF48BB78),
+                                          Color(0xFF38A169),
+                                        ],
+                                      ),
+                                      borderRadius: BorderRadius.circular(20.r),
+                                      border: Border.all(
+                                        color: Colors.white,
+                                        width: 3,
+                                      ),
                                     ),
-                                    borderRadius: BorderRadius.circular(20.r),
-                                    border: Border.all(
+                                    child: Icon(
+                                      Icons.camera_alt,
                                       color: Colors.white,
-                                      width: 3,
+                                      size: 16.sp,
                                     ),
+                                  ).animate().scale(
+                                    delay: 600.ms,
+                                    duration: 600.ms,
+                                    curve: Curves.easeOutBack,
                                   ),
-                                  child: Icon(
-                                    Icons.camera_alt,
-                                    color: Colors.white,
-                                    size: 16.sp,
-                                  ),
-                                ).animate().scale(
-                                  delay: 600.ms,
-                                  duration: 600.ms,
-                                  curve: Curves.easeOutBack,
-                                ),
+                            ),
                           ),
                         ],
                       ),
@@ -466,39 +1046,12 @@ class _ProfileScreenState extends State<ProfileScreen>
                   ),
                 ).animate().slideY(begin: 0.5, delay: 200.ms, duration: 800.ms),
 
-                SizedBox(height: 30.h),
-
-                // Statistics Cards
-                Row(
-                  children: [
-                    Expanded(
-                      child: _buildStatCard(
-                        'Lights Managed',
-                        '2,543',
-                        Icons.lightbulb,
-                        const Color(0xFF667EEA),
-                        0,
-                      ),
-                    ),
-                    SizedBox(width: 15.w),
-                    Expanded(
-                      child: _buildStatCard(
-                        'System Uptime',
-                        '99.2%',
-                        Icons.trending_up,
-                        const Color(0xFF48BB78),
-                        1,
-                      ),
-                    ),
-                  ],
-                ),
-
-                SizedBox(height: 30.h),
+                SizedBox(height: 20.h),
 
                 // Menu Options
                 _buildMenuSection(),
 
-                SizedBox(height: 30.h),
+                SizedBox(height: 20.h),
 
                 // Logout Button
                 Container(
