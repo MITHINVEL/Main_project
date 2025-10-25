@@ -1,0 +1,37 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // ============ NOTIFICATIONS COLLECTION ============
+    match /notifications/{document} {
+      // Users can read/write their own notifications
+      allow read, write: if request.auth != null 
+                         && request.auth.uid == resource.data.createdBy;
+      
+      // Allow creating notifications if user is authenticated
+      allow create: if request.auth != null;
+    }
+
+    // ============ STREET LIGHTS COLLECTION ============
+    match /street_lights/{document} {
+      // All authenticated users can read street lights
+      allow read: if request.auth != null;
+      
+      // All authenticated users can create/update street lights
+      allow write: if request.auth != null;
+    }
+
+    // ============ USERS COLLECTION ============
+    match /users/{userId} {
+      // Users can read/write their own profile
+      allow read, write: if request.auth != null 
+                         && request.auth.uid == userId;
+    }
+
+    // ============ DEFAULT DENY ============
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

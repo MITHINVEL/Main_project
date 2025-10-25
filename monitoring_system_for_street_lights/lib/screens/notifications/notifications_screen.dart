@@ -40,6 +40,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   // us show the street light name synchronously in the list without
   // flashing the phone number first.
   final Map<String, Map<String, dynamic>> _streetLightCache = {};
+  // Prevent excessive rebuilds
+  bool _isUpdatingCache = false;
+  // Track failed fetch attempts to prevent infinite retry
+  final Set<String> _failedFetches = {};
 
   @override
   void initState() {
@@ -66,26 +70,88 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Future<void> _prefetchStreetLightDocs(Set<String> ids) async {
     try {
       final toFetch = ids
-          .where((id) => !_streetLightCache.containsKey(id))
+          .where(
+            (id) =>
+                !_streetLightCache.containsKey(id) &&
+                !_failedFetches.contains(id),
+          )
           .toList();
       if (toFetch.isEmpty) return;
+
+      print('🔄 Prefetching ${toFetch.length} street light documents...');
 
       final coll = FirebaseFirestore.instance.collection('street_lights');
       const int chunkSize = 10; // Firestore whereIn limit
       for (int i = 0; i < toFetch.length; i += chunkSize) {
         final end = min(i + chunkSize, toFetch.length);
         final chunk = toFetch.sublist(i, end);
-        final snap = await coll
-            .where(FieldPath.documentId, whereIn: chunk)
-            .get();
-        for (final d in snap.docs) {
-          _streetLightCache[d.id] = d.data();
+        try {
+          final snap = await coll
+              .where(FieldPath.documentId, whereIn: chunk)
+              .get();
+          for (final d in snap.docs) {
+            _streetLightCache[d.id] = d.data();
+            print(
+              '✅ Cached street light: ${d.id} - ${d.data()['name'] ?? 'Unnamed'}',
+            );
+          }
+
+          // Mark any not found as failed to prevent retry
+          final foundIds = snap.docs.map((d) => d.id).toSet();
+          for (final id in chunk) {
+            if (!foundIds.contains(id)) {
+              _failedFetches.add(id);
+            }
+          }
+        } catch (chunkError) {
+          print('❌ Error fetching chunk: $chunkError');
+          // Mark all in this chunk as failed to prevent infinite retry
+          _failedFetches.addAll(chunk);
         }
       }
 
-      if (mounted) setState(() {});
+      // Only update UI once at the end, not per document
+      if (mounted && _streetLightCache.isNotEmpty) {
+        setState(() {});
+      }
     } catch (e) {
       print('❌ Error prefetching street lights: $e');
+    }
+  }
+
+  /// Fetch a single street light document and update the cache
+  Future<void> _fetchSingleStreetLight(String lightId) async {
+    try {
+      // Skip if already cached, already updating, failed before, or widget unmounted
+      if (_streetLightCache.containsKey(lightId) ||
+          _isUpdatingCache ||
+          _failedFetches.contains(lightId) ||
+          !mounted)
+        return;
+
+      _isUpdatingCache = true;
+
+      final doc = await FirebaseFirestore.instance
+          .collection('street_lights')
+          .doc(lightId)
+          .get();
+
+      if (doc.exists && mounted) {
+        _streetLightCache[lightId] = doc.data()!;
+        // Only update state if we're not in the middle of another update
+        if (mounted) {
+          setState(() {});
+        }
+      } else {
+        // Mark as failed to prevent retry
+        _failedFetches.add(lightId);
+      }
+    } catch (e) {
+      print('❌ Error fetching single street light $lightId: $e');
+      // Mark as failed to prevent infinite retry
+      _failedFetches.add(lightId);
+    } finally {
+      _isUpdatingCache = false;
     }
   }
 
@@ -271,6 +337,49 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
     }
   }
 
+  // Reset all notification filters to show all notifications
+  Future<void> _resetNotificationFilters() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+
+      // Clear suppressed signatures
+      await prefs.remove('suppressed_signatures_v1');
+
+      // Clear locally tracked fixed notifications
+      setState(() {
+        _locallyFixedNotificationIds.clear();
+        _suppressedSignatures.clear();
+
+        // Clear street light cache to force fresh fetch
+        _streetLightCache.clear();
+        _failedFetches.clear();
+
+        // Reset other state variables to force complete reload
+        _initialNotificationsLoaded = false;
+        _displayedNotificationIds.clear();
+        _isUpdatingCache = false;
+      });
+
+      // Force a small delay to ensure UI resets completely
+      await Future.delayed(const Duration(milliseconds: 100));
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notifications feed refreshed! 🔄'),
+          backgroundColor: Colors.green,
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Failed to refresh: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+
   Stream<QuerySnapshot<Map<String, dynamic>>> _buildNotificationsStream() {
     final user = FirebaseAuth.instance.currentUser;
     if (user == null) {
@@ -314,6 +423,26 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               automaticallyImplyLeading:
                   !widget.isEmbeddedInBottomNav &&
                   Navigator.of(context).canPop(),
+              actions: [
+                IconButton(
+                  onPressed: _resetNotificationFilters,
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh Notifications',
+                ),
+                PopupMenuButton<String>(
+                  onSelected: (value) {
+                    if (value == 'reset') {
+                      _resetNotificationFilters();
+                    }
+                  },
+                  itemBuilder: (context) => [
+                    const PopupMenuItem(
+                      value: 'reset',
+                      child: Text('Reset All Filters'),
+                    ),
+                  ],
+                ),
+              ],
               flexibleSpace: Container(
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
@@ -424,7 +553,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 children: [
                   _buildSummaryCard(0, 0, 0).animate().fadeIn(duration: 400.ms),
                   SizedBox(height: 32.h),
-                  _buildEmptyState(context),
+                  _buildEmptyState(
+                    context,
+                    onRefresh: _resetNotificationFilters,
+                  ),
                 ],
               );
             }
@@ -550,10 +682,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                 relatedIds.addAll(related);
               } catch (_) {}
             }
-            if (relatedIds.isNotEmpty) {
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                _prefetchStreetLightDocs(relatedIds);
-              });
+            if (relatedIds.isNotEmpty && _failedFetches.length < 5) {
+              // Only prefetch if we haven't had too many failures
+              Future.microtask(() => _prefetchStreetLightDocs(relatedIds));
             }
 
             final fixedCount = allSmsDocs.length - pendingDocs.length;
@@ -629,9 +760,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
               print('Error processing new notification changes: $e');
             }
 
-            print(
-              'Total SMS docs: $totalCount, Pending: $pendingCount, Fixed: $fixedCount',
-            );
+            // Reduce debug logging frequency
+            if (pendingCount > 0) {
+              print(
+                'NOTIFICATION DEBUG: Total SMS docs: $totalCount, Pending: $pendingCount, Fixed: $fixedCount',
+              );
+            }
 
             if (pendingDocs.isEmpty) {
               return ListView(
@@ -643,7 +777,10 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     fixedCount,
                   ).animate().fadeIn(duration: 400.ms),
                   SizedBox(height: 32.h),
-                  _buildEmptyState(context),
+                  _buildEmptyState(
+                    context,
+                    onRefresh: _resetNotificationFilters,
+                  ),
                 ],
               );
             }
@@ -684,12 +821,22 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                   final cached = _streetLightCache[related.first];
                   final cachedName = cached == null
                       ? null
-                      : (cached['name'] ?? cached['streetLightNumber']);
+                      : (cached['name'] ??
+                            cached['streetLightNumber'] ??
+                            cached['lightName']);
                   if (cachedName != null &&
                       cachedName.toString().trim().isNotEmpty) {
                     displayTitle = cachedName.toString();
                   } else {
-                    displayTitle = 'Loading...';
+                    // Show generic name while fetching street light data
+                    displayTitle = 'Street Light';
+
+                    // Only fetch if not already failed due to permissions
+                    if (!_failedFetches.contains(related.first)) {
+                      Future.microtask(
+                        () => _fetchSingleStreetLight(related.first),
+                      );
+                    }
                   }
                 } else {
                   displayTitle = 'Alert';
@@ -1456,7 +1603,7 @@ Widget _buildSummaryCard(int total, int pending, int fixed) {
   );
 }
 
-Widget _buildEmptyState(BuildContext context) {
+Widget _buildEmptyState(BuildContext context, {VoidCallback? onRefresh}) {
   return Container(
     padding: EdgeInsets.all(28.w),
     decoration: BoxDecoration(
@@ -1507,7 +1654,7 @@ Widget _buildEmptyState(BuildContext context) {
         ),
         SizedBox(height: 24.h),
         ElevatedButton.icon(
-          onPressed: () {},
+          onPressed: onRefresh ?? () {},
           icon: const Icon(Icons.refresh),
           label: const Text('Refresh Feed'),
           style: ElevatedButton.styleFrom(

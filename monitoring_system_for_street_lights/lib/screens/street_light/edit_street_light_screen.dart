@@ -3,6 +3,10 @@ import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'dart:io';
 
 class EditStreetLightScreen extends StatefulWidget {
   final Map<String, dynamic> streetLightData;
@@ -29,11 +33,16 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
 
   bool isLoading = false;
   bool isFormChanged = false;
+  File? _selectedImage;
+  String? _currentImageUrl;
+  bool _isUploadingImage = false;
 
   @override
   void initState() {
     super.initState();
     _initializeControllers();
+    _currentImageUrl =
+        widget.streetLightData['imageUrl'] ?? widget.streetLightData['image'];
   }
 
   void _initializeControllers() {
@@ -211,6 +220,242 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
             ],
           ),
 
+          // Photo Section
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(20.w, 20.h, 20.w, 0),
+              child: Container(
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20.r),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.08),
+                      blurRadius: 20,
+                      offset: const Offset(0, 8),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    // Photo Header
+                    Container(
+                      padding: EdgeInsets.all(20.w),
+                      decoration: BoxDecoration(
+                        gradient: const LinearGradient(
+                          colors: [Color(0xFFFF6B6B), Color(0xFFFFE66D)],
+                        ),
+                        borderRadius: BorderRadius.only(
+                          topLeft: Radius.circular(20.r),
+                          topRight: Radius.circular(20.r),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: EdgeInsets.all(8.w),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withOpacity(0.2),
+                              borderRadius: BorderRadius.circular(12.r),
+                            ),
+                            child: Icon(
+                              Icons.photo_camera_rounded,
+                              color: Colors.white,
+                              size: 20.sp,
+                            ),
+                          ),
+                          SizedBox(width: 12.w),
+                          Text(
+                            'Street Light Photo',
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 16.sp,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.5,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    // Photo Content
+                    Padding(
+                      padding: EdgeInsets.all(20.w),
+                      child: Column(
+                        children: [
+                          GestureDetector(
+                            onTap: _showImageSourceDialog,
+                            child: Container(
+                              height: 200.h,
+                              decoration: BoxDecoration(
+                                color: const Color(0xFFF8FAFC),
+                                borderRadius: BorderRadius.circular(16.r),
+                                border: Border.all(
+                                  color: Colors.grey.withOpacity(0.2),
+                                  width: 2,
+                                ),
+                              ),
+                              child: _selectedImage != null
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(16.r),
+                                      child: Image.file(
+                                        _selectedImage!,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                      ),
+                                    )
+                                  : _currentImageUrl != null &&
+                                        _currentImageUrl!.isNotEmpty
+                                  ? ClipRRect(
+                                      borderRadius: BorderRadius.circular(16.r),
+                                      child: Image.network(
+                                        _currentImageUrl!,
+                                        fit: BoxFit.cover,
+                                        width: double.infinity,
+                                        errorBuilder:
+                                            (context, error, stackTrace) {
+                                              return _buildPlaceholder();
+                                            },
+                                        loadingBuilder: (context, child, loadingProgress) {
+                                          if (loadingProgress == null) {
+                                            return child;
+                                          }
+                                          return Center(
+                                            child: CircularProgressIndicator(
+                                              value:
+                                                  loadingProgress
+                                                          .expectedTotalBytes !=
+                                                      null
+                                                  ? loadingProgress
+                                                            .cumulativeBytesLoaded /
+                                                        loadingProgress
+                                                            .expectedTotalBytes!
+                                                  : null,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    )
+                                  : _buildPlaceholder(),
+                            ),
+                          ),
+                          SizedBox(height: 16.h),
+                          if (_isUploadingImage)
+                            Container(
+                              padding: EdgeInsets.all(12.w),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF667EEA).withOpacity(0.1),
+                                borderRadius: BorderRadius.circular(12.r),
+                              ),
+                              child: Row(
+                                children: [
+                                  SizedBox(
+                                    width: 20.w,
+                                    height: 20.h,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                        const Color(0xFF667EEA),
+                                      ),
+                                    ),
+                                  ),
+                                  SizedBox(width: 12.w),
+                                  Text(
+                                    'Uploading image...',
+                                    style: TextStyle(
+                                      fontSize: 14.sp,
+                                      color: const Color(0xFF667EEA),
+                                      fontWeight: FontWeight.w600,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                          else
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: OutlinedButton.icon(
+                                    onPressed: _showImageSourceDialog,
+                                    icon: Icon(
+                                      Icons.camera_alt_rounded,
+                                      size: 20.sp,
+                                    ),
+                                    label: Text(
+                                      _selectedImage != null ||
+                                              (_currentImageUrl != null &&
+                                                  _currentImageUrl!.isNotEmpty)
+                                          ? 'Change Photo'
+                                          : 'Add Photo',
+                                      style: TextStyle(
+                                        fontSize: 14.sp,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: const Color(0xFF667EEA),
+                                      side: BorderSide(
+                                        color: const Color(0xFF667EEA),
+                                        width: 2,
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12.h,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                if (_selectedImage != null ||
+                                    (_currentImageUrl != null &&
+                                        _currentImageUrl!.isNotEmpty)) ...[
+                                  SizedBox(width: 12.w),
+                                  OutlinedButton.icon(
+                                    onPressed: _removeImage,
+                                    icon: Icon(
+                                      Icons.delete_outline_rounded,
+                                      size: 20.sp,
+                                    ),
+                                    label: Padding(
+                                      padding: const EdgeInsets.only(right: 8),
+                                      child: Text(
+                                        'Remove',
+                                        style: TextStyle(
+                                          fontSize: 14.sp,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ),
+                                    style: OutlinedButton.styleFrom(
+                                      foregroundColor: Colors.red,
+                                      side: BorderSide(
+                                        color: Colors.red,
+                                        width: 2,
+                                      ),
+                                      padding: EdgeInsets.symmetric(
+                                        vertical: 12.h,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(
+                                          14.r,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ).animate().slideY(begin: 0.3, duration: 600.ms),
+            ),
+          ),
+
           // Form Content
           SliverToBoxAdapter(
             child: Padding(
@@ -349,6 +594,30 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
                             ],
                           ),
                         ),
+                        SizedBox(height: 16.h),
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton.icon(
+                            onPressed: _getCurrentLocation,
+                            icon: Icon(Icons.my_location_rounded, size: 20.sp),
+                            label: Text(
+                              'Use Current Location',
+                              style: TextStyle(
+                                fontSize: 15.sp,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: const Color(0xFF667EEA),
+                              foregroundColor: Colors.white,
+                              padding: EdgeInsets.symmetric(vertical: 14.h),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14.r),
+                              ),
+                              elevation: 2,
+                            ),
+                          ),
+                        ),
                       ],
                     ).animate().slideY(
                       begin: 0.3,
@@ -363,6 +632,219 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPlaceholder() {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Icon(
+          Icons.add_photo_alternate_outlined,
+          size: 48.sp,
+          color: Colors.grey[400],
+        ),
+        SizedBox(height: 12.h),
+        Text(
+          'Tap to add photo',
+          style: TextStyle(
+            fontSize: 14.sp,
+            color: Colors.grey[600],
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Future<void> _showImageSourceDialog() async {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (context) => Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.vertical(top: Radius.circular(24.r)),
+        ),
+        padding: EdgeInsets.all(20.w),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40.w,
+              height: 4.h,
+              decoration: BoxDecoration(
+                color: Colors.grey[300],
+                borderRadius: BorderRadius.circular(2.r),
+              ),
+            ),
+            SizedBox(height: 20.h),
+            Text(
+              'Choose Photo Source',
+              style: TextStyle(
+                fontSize: 18.sp,
+                fontWeight: FontWeight.w700,
+                color: const Color(0xFF2D3748),
+              ),
+            ),
+            SizedBox(height: 24.h),
+            Row(
+              children: [
+                Expanded(
+                  child: _buildSourceOption(
+                    icon: Icons.camera_alt_rounded,
+                    label: 'Camera',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.camera);
+                    },
+                  ),
+                ),
+                SizedBox(width: 16.w),
+                Expanded(
+                  child: _buildSourceOption(
+                    icon: Icons.photo_library_rounded,
+                    label: 'Gallery',
+                    onTap: () {
+                      Navigator.pop(context);
+                      _pickImage(ImageSource.gallery);
+                    },
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 20.h),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildSourceOption({
+    required IconData icon,
+    required String label,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: EdgeInsets.symmetric(vertical: 20.h),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF667EEA), Color(0xFF764BA2)],
+          ),
+          borderRadius: BorderRadius.circular(16.r),
+          boxShadow: [
+            BoxShadow(
+              color: const Color(0xFF667EEA).withOpacity(0.3),
+              blurRadius: 12,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: Colors.white, size: 32.sp),
+            SizedBox(height: 8.h),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.white,
+                fontSize: 14.sp,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickImage(ImageSource source) async {
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        maxWidth: 1920,
+        maxHeight: 1080,
+        imageQuality: 85,
+      );
+
+      if (image != null) {
+        setState(() {
+          _selectedImage = File(image.path);
+          isFormChanged = true;
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12.w),
+                Text(
+                  'Photo selected successfully!',
+                  style: TextStyle(fontSize: 14.sp),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              Icon(Icons.error_outline, color: Colors.white),
+              SizedBox(width: 12.w),
+              Expanded(
+                child: Text(
+                  'Failed to pick image: ${e.toString()}',
+                  style: TextStyle(fontSize: 14.sp),
+                ),
+              ),
+            ],
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+        ),
+      );
+    }
+  }
+
+  void _removeImage() {
+    setState(() {
+      _selectedImage = null;
+      _currentImageUrl = null;
+      isFormChanged = true;
+    });
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.white),
+            SizedBox(width: 12.w),
+            Text('Photo removed', style: TextStyle(fontSize: 14.sp)),
+          ],
+        ),
+        backgroundColor: Colors.orange,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(12.r),
+        ),
+        duration: const Duration(seconds: 2),
       ),
     );
   }
@@ -600,6 +1082,124 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
     };
   }
 
+  Future<void> _getCurrentLocation() async {
+    try {
+      // Show loading indicator
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 20.w,
+                height: 20.h,
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 2,
+                ),
+              ),
+              SizedBox(width: 12.w),
+              Text(
+                'Getting current location...',
+                style: TextStyle(fontSize: 14.sp),
+              ),
+            ],
+          ),
+          backgroundColor: const Color(0xFF667EEA),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12.r),
+          ),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+
+      // Check if location services are enabled
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled. Please enable them.');
+      }
+
+      // Check for location permissions
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permission denied');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception(
+          'Location permissions are permanently denied. Please enable them in settings.',
+        );
+      }
+
+      // Get current position
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      // Update the text controllers
+      setState(() {
+        latController.text = position.latitude.toStringAsFixed(6);
+        lngController.text = position.longitude.toStringAsFixed(6);
+      });
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.check_circle, color: Colors.white),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    'Location updated successfully!',
+                    style: TextStyle(fontSize: 14.sp),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.error_outline, color: Colors.white),
+                SizedBox(width: 12.w),
+                Expanded(
+                  child: Text(
+                    'Failed to get location: ${e.toString()}',
+                    style: TextStyle(fontSize: 14.sp),
+                  ),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12.r),
+            ),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+    }
+  }
+
   Future<void> _updateStreetLight() async {
     if (!_formKey.currentState!.validate()) {
       return;
@@ -613,6 +1213,34 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
       final user = FirebaseAuth.instance.currentUser;
       if (user == null) {
         throw Exception('User not authenticated');
+      }
+
+      // Upload image if selected
+      String? imageUrl = _currentImageUrl;
+      if (_selectedImage != null) {
+        setState(() {
+          _isUploadingImage = true;
+        });
+
+        try {
+          final docId = widget.streetLightData['id'];
+          final storageRef = FirebaseStorage.instance
+              .ref()
+              .child('street_lights')
+              .child('$docId.jpg');
+
+          final uploadTask = await storageRef.putFile(_selectedImage!);
+          imageUrl = await uploadTask.ref.getDownloadURL();
+
+          setState(() {
+            _isUploadingImage = false;
+          });
+        } catch (e) {
+          setState(() {
+            _isUploadingImage = false;
+          });
+          throw Exception('Failed to upload image: $e');
+        }
       }
 
       // Parse coordinates
@@ -641,6 +1269,16 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
           'formatted': normalizedAddress['formatted']!,
         },
       };
+
+      // Add image URL if available
+      if (imageUrl != null && imageUrl.isNotEmpty) {
+        updatedData['imageUrl'] = imageUrl;
+        updatedData['image'] = imageUrl;
+      } else if (_currentImageUrl == null) {
+        // If image was removed
+        updatedData['imageUrl'] = '';
+        updatedData['image'] = '';
+      }
 
       // Get document ID
       final docId = widget.streetLightData['id'];

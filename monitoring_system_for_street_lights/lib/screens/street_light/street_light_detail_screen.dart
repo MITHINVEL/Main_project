@@ -310,16 +310,21 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
                 child:
                     data['imageUrl'] != null &&
                         (data['imageUrl'] as String).isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(20.r),
-                        child: Image.network(
-                          data['imageUrl'],
-                          fit: BoxFit.cover,
-                          width: 80.w,
-                          height: 80.h,
-                          errorBuilder: (context, error, stackTrace) {
-                            return _buildDefaultLightIcon();
-                          },
+                    ? GestureDetector(
+                        onTap: () {
+                          _showFullScreenImage(context, data['imageUrl']);
+                        },
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(20.r),
+                          child: Image.network(
+                            data['imageUrl'],
+                            fit: BoxFit.cover,
+                            width: 80.w,
+                            height: 80.h,
+                            errorBuilder: (context, error, stackTrace) {
+                              return _buildDefaultLightIcon();
+                            },
+                          ),
                         ),
                       )
                     : _buildDefaultLightIcon(),
@@ -371,6 +376,88 @@ class _StreetLightDetailScreenState extends State<StreetLightDetailScreen> {
         borderRadius: BorderRadius.circular(20.r),
       ),
       child: Icon(Icons.lightbulb_rounded, color: Colors.white, size: 40.sp),
+    );
+  }
+
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black,
+          body: Stack(
+            children: [
+              // Full screen image with pinch-to-zoom
+              Center(
+                child: InteractiveViewer(
+                  minScale: 0.5,
+                  maxScale: 4.0,
+                  child: Image.network(
+                    imageUrl,
+                    fit: BoxFit.contain,
+                    loadingBuilder: (context, child, loadingProgress) {
+                      if (loadingProgress == null) return child;
+                      return Center(
+                        child: CircularProgressIndicator(
+                          value: loadingProgress.expectedTotalBytes != null
+                              ? loadingProgress.cumulativeBytesLoaded /
+                                    loadingProgress.expectedTotalBytes!
+                              : null,
+                          color: Colors.white,
+                        ),
+                      );
+                    },
+                    errorBuilder: (context, error, stackTrace) {
+                      return Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              Icons.broken_image_outlined,
+                              size: 64.sp,
+                              color: Colors.white54,
+                            ),
+                            SizedBox(height: 16.h),
+                            Text(
+                              'Failed to load image',
+                              style: TextStyle(
+                                color: Colors.white54,
+                                fontSize: 16.sp,
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ),
+              // Close button
+              SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.all(16.w),
+                  child: Align(
+                    alignment: Alignment.topRight,
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: Colors.black.withOpacity(0.5),
+                        shape: BoxShape.circle,
+                      ),
+                      child: IconButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        icon: Icon(
+                          Icons.close_rounded,
+                          color: Colors.white,
+                          size: 28.sp,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 

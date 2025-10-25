@@ -26,13 +26,119 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
   // causing a perceived "loading/refreshing" effect.
   bool _initialHistoryLoaded = false;
 
+  // Street light cache for displaying names and locations
+  final Map<String, Map<String, dynamic>?> _streetLightCache = {};
+
+  @override
+  void initState() {
+    super.initState();
+    // Automatically refresh street light data when screen opens
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _prefetchAllStreetLights();
+    });
+  }
+
+  // Prefetch all street light data for notifications
+  Future<void> _prefetchAllStreetLights() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user == null) return;
+
+      final notifications = await FirebaseFirestore.instance
+          .collection('notifications')
+          .where('createdBy', isEqualTo: user.uid)
+          .where('isFixed', isEqualTo: true)
+          .get();
+
+      // Collect all unique light IDs
+      final Set<String> lightIds = {};
+      for (final doc in notifications.docs) {
+        final data = doc.data();
+        final related =
+            (data['relatedLights'] as List<dynamic>?)?.cast<String>() ?? [];
+        lightIds.addAll(related);
+      }
+
+      // Remove already cached IDs
+      lightIds.removeWhere((id) => _streetLightCache.containsKey(id));
+
+      if (lightIds.isNotEmpty) {
+        // Fetch all in parallel for faster loading
+        final futures = lightIds.map(
+          (lightId) => _fetchStreetLightDataSilent(lightId),
+        );
+        await Future.wait(futures);
+
+        // Single rebuild after all data is fetched
+        if (mounted) {
+          setState(() {});
+        }
+      }
+    } catch (e) {
+      print('Error prefetching street lights: $e');
+    }
+  }
+
+  // Silent fetch that doesn't trigger setState
+  Future<void> _fetchStreetLightDataSilent(String lightId) async {
+    if (_streetLightCache.containsKey(lightId)) return;
+
+    try {
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('street_lights')
+          .doc(lightId)
+          .get();
+
+      if (docSnapshot.exists) {
+        _streetLightCache[lightId] = docSnapshot.data();
+      } else {
+        _streetLightCache[lightId] = null;
+      }
+    } catch (e) {
+      _streetLightCache[lightId] = null;
+      print('Error fetching street light $lightId: $e');
+    }
+  }
+
   String _formatTimestamp(Timestamp? ts) {
     if (ts == null) return '';
     final dt = ts.toDate();
     return DateFormat('dd MMM yyyy, hh:mm a').format(dt);
   }
 
-  // Styled delete-selected button. Accepts the build context because the
+  // Fetch street light data for caching
+  Future<void> _fetchStreetLightData(String lightId) async {
+    if (_streetLightCache.containsKey(lightId)) return;
+
+    try {
+      final docSnapshot = await FirebaseFirestore.instance
+          .collection('street_lights')
+          .doc(lightId)
+          .get();
+
+      if (docSnapshot.exists) {
+        _streetLightCache[lightId] = docSnapshot.data();
+      } else {
+        _streetLightCache[lightId] = null;
+      }
+
+      // Trigger UI rebuild when data is fetched
+      if (mounted) {
+        setState(() {});
+      }
+    } catch (e) {
+      _streetLightCache[lightId] = null;
+      print('Error fetching street light $lightId: $e');
+    }
+  }
+
+  // Refresh all street light data
+  Future<void> _refreshStreetLightData() async {
+    // Clear existing cache and fetch fresh data
+    _streetLightCache.clear();
+    await _prefetchAllStreetLights();
+  } // Styled delete-selected button. Accepts the build context because the
+
   // confirmation flow requires it.
   Widget _buildDeleteSelectedButton(BuildContext context) {
     final enabled = _selectedIds.isNotEmpty;
@@ -319,7 +425,15 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
         // The default AppBar should not show the clear/delete icon.
         actions: _selectionMode
             ? [_buildSelectAllButton(), _buildDeleteSelectedButton(context)]
-            : [],
+            : [
+                IconButton(
+                  onPressed: () async {
+                    await _refreshStreetLightData();
+                  },
+                  icon: const Icon(Icons.refresh),
+                  tooltip: 'Refresh street light data',
+                ),
+              ],
 
         flexibleSpace: Container(
           decoration: const BoxDecoration(
@@ -418,7 +532,33 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                 final data = doc.data();
                 final related = (data['relatedLights'] as List<dynamic>?) ?? [];
                 final source = (data['source'] ?? '').toString().toLowerCase();
-                return source.startsWith('sms') || related.isNotEmpty;
+
+                // Basic filter for SMS or has related lights
+                bool isValidType =
+                    source.startsWith('sms') || related.isNotEmpty;
+                if (!isValidType) return false;
+
+                // If has related lights, only show if we have cached street light data
+                if (related.isNotEmpty) {
+                  final firstLightId = related.first.toString();
+                  final cached = _streetLightCache[firstLightId];
+
+                  // Only show if we have cached data with a valid name
+                  if (cached != null) {
+                    final cachedName =
+                        cached['name'] ??
+                        cached['streetLightNumber'] ??
+                        cached['lightName'];
+                    return cachedName != null &&
+                        cachedName.toString().trim().isNotEmpty;
+                  } else {
+                    // If not cached, trigger fetch but don't show item yet
+                    _fetchStreetLightData(firstLightId);
+                    return false;
+                  }
+                }
+
+                return true; // For non-street-light notifications
               } catch (e) {
                 print('Error filtering history doc ${doc.id}: $e');
                 return false;
@@ -561,6 +701,31 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                                 ?.cast<String>() ??
                             [];
 
+                        // Get street light name and location using same logic as main notifications
+                        String displayTitle;
+                        String locationStr = '';
+
+                        if (related.isNotEmpty) {
+                          final cached = _streetLightCache[related.first];
+                          final cachedName = cached == null
+                              ? null
+                              : (cached['name'] ??
+                                    cached['streetLightNumber'] ??
+                                    cached['lightName']);
+
+                          // We know cached data exists because of our filter
+                          displayTitle =
+                              cachedName?.toString() ?? 'Street Light';
+
+                          // Get location string
+                          locationStr = cached == null
+                              ? ''
+                              : (cached['location'] ?? cached['address'] ?? '')
+                                    .toString();
+                        } else {
+                          displayTitle = from;
+                        }
+
                         final isSelected = _selectedIds.contains(doc.id);
 
                         final itemWidget = Material(
@@ -666,7 +831,7 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                                           children: [
                                             Text(
                                               related.isNotEmpty
-                                                  ? 'Street Light Fixed'
+                                                  ? displayTitle
                                                   : from,
                                               style: TextStyle(
                                                 fontWeight: FontWeight.w600,
@@ -675,13 +840,48 @@ class _NotificationHistoryScreenState extends State<NotificationHistoryScreen> {
                                               ),
                                             ),
                                             SizedBox(height: 2.h),
-                                            if (related.isNotEmpty)
+                                            if (related.isNotEmpty) ...[
+                                              if (locationStr.isNotEmpty) ...[
+                                                Padding(
+                                                  padding: EdgeInsets.only(
+                                                    top: 4.h,
+                                                  ),
+                                                  child: Row(
+                                                    children: [
+                                                      Icon(
+                                                        Icons.location_on,
+                                                        size: 12.sp,
+                                                        color: const Color(
+                                                          0xFF718096,
+                                                        ),
+                                                      ),
+                                                      SizedBox(width: 4.w),
+                                                      Expanded(
+                                                        child: Text(
+                                                          locationStr,
+                                                          maxLines: 1,
+                                                          overflow: TextOverflow
+                                                              .ellipsis,
+                                                          style: TextStyle(
+                                                            fontSize: 12.sp,
+                                                            color: const Color(
+                                                              0xFF718096,
+                                                            ),
+                                                          ),
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                ),
+                                              ],
+                                            ] else
                                               Text(
                                                 '${related.length} light(s) resolved',
                                                 style: TextStyle(
                                                   fontSize: 12.sp,
-                                                  color: Colors.green,
-                                                  fontWeight: FontWeight.w500,
+                                                  color: const Color(
+                                                    0xFF718096,
+                                                  ),
                                                 ),
                                               ),
                                           ],

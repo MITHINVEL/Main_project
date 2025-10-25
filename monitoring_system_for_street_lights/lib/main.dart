@@ -22,18 +22,44 @@ import 'firebase_options.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Firebase
-  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  try {
+    // Initialize Firebase
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    print("Firebase initialized successfully");
 
-  // Initialize Push Notification Service
-  await PushNotificationService.initialize();
+    // Initialize Push Notification Service
+    try {
+      await PushNotificationService.initialize();
+      print("Push notification service initialized");
+    } catch (e) {
+      print("Push notification initialization failed: $e");
+      // Don't fail the app if push notifications fail
+    }
 
-  // Initialize SMS Listener Service with platform listener enabled
-  final smsService = SmsListenerService(enablePlatformListener: true);
-  await smsService.start();
+    // Initialize SMS Listener Service with platform listener enabled
+    try {
+      final smsService = SmsListenerService(enablePlatformListener: true);
+      await smsService.start();
+      print("SMS service started");
+    } catch (e) {
+      print("SMS service initialization failed: $e");
+      // Don't fail the app if SMS service fails
+    }
 
-  // Start Street Light Monitoring Service
-  await StreetLightMonitoringService.startMonitoring();
+    // Start Street Light Monitoring Service
+    try {
+      await StreetLightMonitoringService.startMonitoring();
+      print("Street light monitoring started");
+    } catch (e) {
+      print("Street light monitoring failed: $e");
+      // Don't fail the app if monitoring fails
+    }
+  } catch (e) {
+    print("Firebase initialization failed: $e");
+    // Even if Firebase fails, we should show an error screen instead of blank
+  }
 
   // Set preferred orientations
   await SystemChrome.setPreferredOrientations([
@@ -93,24 +119,40 @@ class AuthenticationWrapper extends StatelessWidget {
   const AuthenticationWrapper({super.key});
 
   Future<Widget> _determineInitialScreen() async {
-    // Check if user is logged in FIRST
-    final currentUser = FirebaseAuth.instance.currentUser;
-    if (currentUser != null) {
-      // User is logged in, go directly to dashboard
-      return const DashboardScreen();
-    }
+    try {
+      print("Determining initial screen...");
 
-    // User is not logged in, check if first time user
-    final prefs = await SharedPreferences.getInstance();
-    final onboardingCompleted = prefs.getBool('onboarding_completed') ?? false;
+      // Check if user is logged in FIRST
+      final currentUser = FirebaseAuth.instance.currentUser;
+      print("Current user: ${currentUser?.email ?? 'No user'}");
 
-    if (!onboardingCompleted) {
-      // First time user, show onboarding
+      if (currentUser != null) {
+        // User is logged in, go directly to dashboard
+        print("User is logged in, navigating to dashboard");
+        return const DashboardScreen();
+      }
+
+      // User is not logged in, check if first time user
+      print("Checking SharedPreferences...");
+      final prefs = await SharedPreferences.getInstance();
+      final onboardingCompleted =
+          prefs.getBool('onboarding_completed') ?? false;
+      print("Onboarding completed: $onboardingCompleted");
+
+      if (!onboardingCompleted) {
+        // First time user, show onboarding
+        print("First time user, showing onboarding");
+        return const OnboardingScreen();
+      }
+
+      // Not logged in but has seen onboarding, show welcome/login screen
+      print("Returning user, showing welcome screen");
+      return const WelcomeScreen();
+    } catch (e) {
+      print("Error in _determineInitialScreen: $e");
+      // If there's any error, default to onboarding screen
       return const OnboardingScreen();
     }
-
-    // Not logged in but has seen onboarding, show welcome/login screen
-    return const WelcomeScreen();
   }
 
   @override
@@ -145,6 +187,53 @@ class AuthenticationWrapper extends StatelessWidget {
                     valueColor: AlwaysStoppedAnimation<Color>(
                       Color(0xFF6C63FF),
                     ),
+                  ),
+                  SizedBox(height: 16.h),
+                  Text(
+                    'Loading...',
+                    style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
+        if (snapshot.hasError) {
+          // Show error screen
+          return Scaffold(
+            backgroundColor: Colors.white,
+            body: Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.error_outline, size: 80.sp, color: Colors.red),
+                  SizedBox(height: 24.h),
+                  Text(
+                    'Something went wrong',
+                    style: TextStyle(
+                      fontSize: 20.sp,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  SizedBox(height: 16.h),
+                  Text(
+                    '${snapshot.error}',
+                    style: TextStyle(fontSize: 14.sp, color: Colors.grey[600]),
+                    textAlign: TextAlign.center,
+                  ),
+                  SizedBox(height: 24.h),
+                  ElevatedButton(
+                    onPressed: () {
+                      // Try to restart the app
+                      Navigator.of(context).pushReplacement(
+                        MaterialPageRoute(
+                          builder: (context) => const OnboardingScreen(),
+                        ),
+                      );
+                    },
+                    child: const Text('Try Again'),
                   ),
                 ],
               ),
