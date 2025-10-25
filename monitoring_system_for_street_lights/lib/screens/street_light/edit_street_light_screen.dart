@@ -49,12 +49,17 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
     nameController = TextEditingController(
       text: widget.streetLightData['name'] ?? '',
     );
+
+    // Load full address from formatted field if available
+    final fullAddressFormatted =
+        widget.streetLightData['fullAddress']?['formatted'];
+    final regularAddress = widget.streetLightData['address'];
+    final streetAddress = widget.streetLightData['fullAddress']?['street'];
+
     addressController = TextEditingController(
-      text:
-          widget.streetLightData['address'] ??
-          widget.streetLightData['fullAddress']?['street'] ??
-          '',
+      text: fullAddressFormatted ?? regularAddress ?? streetAddress ?? '',
     );
+
     areaController = TextEditingController(
       text:
           widget.streetLightData['area'] ??
@@ -1037,48 +1042,25 @@ class _EditStreetLightScreenState extends State<EditStreetLightScreen>
     final area = areaController.text.trim();
     final ward = wardController.text.trim();
 
-    // Split address by commas and clean up
+    // If address contains commas, split it into parts
     List<String> addressParts = address
         .split(',')
         .map((part) => part.trim())
         .where((part) => part.isNotEmpty)
         .toList();
-    List<String> areaParts = area
-        .split(',')
-        .map((part) => part.trim())
-        .where((part) => part.isNotEmpty)
-        .toList();
 
-    // Remove duplicates between address and area
-    Set<String> uniqueParts = {};
-    uniqueParts.addAll(addressParts);
-    uniqueParts.addAll(areaParts);
-
-    // Filter out common duplicates (case insensitive)
-    List<String> finalParts = [];
-    Set<String> addedLower = {};
-
-    for (String part in uniqueParts) {
-      String lowerPart = part.toLowerCase();
-      if (!addedLower.contains(lowerPart)) {
-        finalParts.add(part);
-        addedLower.add(lowerPart);
-      }
-    }
-
-    // Reconstruct normalized addresses
-    String normalizedAddress = finalParts.isNotEmpty
-        ? finalParts.first
-        : address;
-    String normalizedArea = finalParts.length > 1
-        ? finalParts.sublist(1).join(', ')
-        : area;
+    // Use full address as-is for all fields
+    String fullAddress = address;
+    String extractedArea = area.isNotEmpty
+        ? area
+        : (addressParts.length > 1 ? addressParts.sublist(1).join(', ') : '');
+    String extractedWard = ward;
 
     return {
-      'address': normalizedAddress,
-      'area': normalizedArea,
-      'ward': ward,
-      'formatted': finalParts.join(', '),
+      'address': fullAddress, // Full address from Street Address field
+      'area': extractedArea,
+      'ward': extractedWard,
+      'formatted': fullAddress, // Full address as formatted
     };
   }
 
