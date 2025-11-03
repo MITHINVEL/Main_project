@@ -142,6 +142,27 @@ class SmsListenerService {
         final docRef = notificationsColl.doc();
         final docId = docRef.id;
 
+        // Get first matched street light details for display
+        String lightName = '';
+        String lightLocation = '';
+        if (matches.isNotEmpty) {
+          final firstLight = matches.first.data();
+          lightName =
+              (firstLight['name'] ??
+                      firstLight['streetLightNumber'] ??
+                      firstLight['lightNumber'] ??
+                      '')
+                  .toString();
+
+          // Get location/address
+          final fullAddress = firstLight['fullAddress'];
+          if (fullAddress != null && fullAddress['formatted'] != null) {
+            lightLocation = fullAddress['formatted'].toString();
+          } else {
+            lightLocation = (firstLight['address'] ?? '').toString();
+          }
+        }
+
         final notificationData = {
           'id': docId,
           'from': normalized,
@@ -152,6 +173,12 @@ class SmsListenerService {
           'isFixed': false,
           'createdBy': createdBy, // Associate with street light owner
           'userId': createdBy,
+          // Add street light details directly to notification
+          'lightName': lightName,
+          'name': lightName,
+          'title': lightName.isNotEmpty ? lightName : 'Street Light Alert',
+          'location': lightLocation,
+          'address': lightLocation,
         };
 
         await docRef.set(notificationData);

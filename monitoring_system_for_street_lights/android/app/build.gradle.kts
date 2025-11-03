@@ -28,14 +28,26 @@ android {
         applicationId = "com.company.Street_Light_Monitor"
         // You can update the following values to match your application needs.
         // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = flutter.minSdkVersion
-        targetSdk = flutter.targetSdkVersion
+        
+        // Old Android versions-க்கும் support (Android 5.0+)
+        minSdk = flutter.minSdkVersion  // Android 5.0 Lollipop முதல் எல்லா devices-க்கும்
+        
+        // Latest Android version target
+        targetSdk = 34  // Android 14
+        
+        // Multi-dex support for old devices
+        multiDexEnabled = true
+        
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
+            // Temporarily disable minification to fix build (can enable later with proper ProGuard rules)
+            isMinifyEnabled = false
+            isShrinkResources = false
+            
             // TODO: Add your own signing config for the release build.
             // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
@@ -48,5 +60,9 @@ flutter {
 }
 
 dependencies {
+    // Core library desugaring for Java 8+ features on old Android
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    
+    // Multi-dex support for old devices (Android 5.0-6.0)
+    implementation("androidx.multidex:multidex:2.0.1")
 }

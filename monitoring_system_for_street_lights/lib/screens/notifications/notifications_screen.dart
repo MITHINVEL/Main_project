@@ -809,9 +809,8 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                     [];
                 // Compute a stable display title for the list — prefer any
                 // server-provided lightName/title/name. If missing, try the
-                // cached related street light name. We DO NOT show the raw
-                // phone number in the main list to avoid flicker.
-                String displayTitle;
+                // cached related street light name. We DO NOT show placeholder text.
+                String displayTitle = '';
                 final rawCandidate =
                     (data['lightName'] ?? data['title'] ?? data['name']);
                 if (rawCandidate != null &&
@@ -828,30 +827,34 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                       cachedName.toString().trim().isNotEmpty) {
                     displayTitle = cachedName.toString();
                   } else {
-                    // Show generic name while fetching street light data
-                    displayTitle = 'Street Light';
-
-                    // Only fetch if not already failed due to permissions
+                    // Fetch street light data in background without showing placeholder
                     if (!_failedFetches.contains(related.first)) {
                       Future.microtask(
                         () => _fetchSingleStreetLight(related.first),
                       );
                     }
+                    // Don't show any placeholder text - leave empty until loaded
+                    displayTitle = '';
                   }
-                } else {
-                  displayTitle = 'Alert';
                 }
 
-                // Prepare cached related street light data so the UI can
-                // render name and location synchronously without per-item
-                // async work inside the widget tree.
+                // Get location from notification data directly or from cache
+                final directLocation =
+                    (data['location'] ?? data['address'] ?? '').toString();
                 final cachedLight = related.isNotEmpty
                     ? _streetLightCache[related.first]
                     : null;
-                final locationStr = cachedLight == null
+                final cachedLocation = cachedLight == null
                     ? ''
-                    : (cachedLight['location'] ?? cachedLight['address'] ?? '')
+                    : (cachedLight['fullAddress']?['formatted'] ??
+                              cachedLight['location'] ??
+                              cachedLight['address'] ??
+                              '')
                           .toString();
+
+                final locationStr = directLocation.isNotEmpty
+                    ? directLocation
+                    : cachedLocation;
 
                 return GestureDetector(
                       onTap: () {
@@ -1173,18 +1176,20 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
                                           crossAxisAlignment:
                                               CrossAxisAlignment.start,
                                           children: [
-                                            // Stable display title: prefer server-provided
-                                            // names; do not show raw phone number here.
-                                            Text(
-                                              displayTitle,
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                              style: TextStyle(
-                                                fontWeight: FontWeight.w700,
-                                                fontSize: 14.sp,
-                                                color: const Color(0xFF1A202C),
+                                            // Only show title if it exists (no placeholder text)
+                                            if (displayTitle.isNotEmpty)
+                                              Text(
+                                                displayTitle,
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                                style: TextStyle(
+                                                  fontWeight: FontWeight.w700,
+                                                  fontSize: 14.sp,
+                                                  color: const Color(
+                                                    0xFF1A202C,
+                                                  ),
+                                                ),
                                               ),
-                                            ),
                                             if (locationStr.isNotEmpty) ...[
                                               Padding(
                                                 padding: EdgeInsets.only(

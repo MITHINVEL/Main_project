@@ -69,21 +69,53 @@ exports.onNotificationCreate = functions.firestore
       },
     };
 
-    // Send to specific user topic if userId available, otherwise send to global topic
+    // Send notifications to all registered users' FCM tokens
     const promises = [];
     try {
-      if (data.userId) {
-        const topic = `user_${data.userId}`;
-        console.log(`Sending notification for doc=${docId} to topic=${topic}`);
-        promises.push(admin.messaging().sendToTopic(topic, fcmPayload));
-      } else {
-        // No specific user - broadcast to global alerts topic
-        console.log(`No userId - sending notification for doc=${docId} to topic=street_lights_alerts`);
-        promises.push(admin.messaging().sendToTopic('street_lights_alerts', fcmPayload));
-      }
+      // Get all users with FCM tokens
+      const usersSnapshot = await admin.firestore().collection('users').get();
+      const tokens = [];
+      
+      usersSnapshot.forEach(doc => {
+        const userData = doc.data();
+        if (userData.fcmToken) {
+          tokens.push(userData.fcmToken);
+        }
+      });
 
-      const results = await Promise.all(promises);
-      console.log('FCM send results:', results.map(r => (r && r.results) ? r.results : r));
+      console.log(`Found ${tokens.length} FCM tokens for notification doc=${docId}`);
+
+      if (tokens.length > 0) {
+        // Send to all tokens (batch of 500 max per call)
+        for (let i = 0; i < tokens.length; i += 500) {
+          const batch = tokens.slice(i, i + 500);
+          console.log(`Sending to ${batch.length} tokens (batch ${Math.floor(i / 500) + 1})`);
+          
+          const message = {
+            notification: fcmPayload.notification,
+            data: fcmPayload.data,
+            android: fcmPayload.android,
+            apns: fcmPayload.apns,
+            tokens: batch,
+          };
+          
+          promises.push(admin.messaging().sendEachForMulticast(message));
+        }
+
+        const results = await Promise.all(promises);
+        results.forEach((result, index) => {
+          console.log(`Batch ${index + 1}: ${result.successCount} success, ${result.failureCount} failures`);
+          if (result.failureCount > 0) {
+            result.responses.forEach((resp, idx) => {
+              if (!resp.success) {
+                console.error(`Failed to send to token ${idx}:`, resp.error);
+              }
+            });
+          }
+        });
+      } else {
+        console.log('No FCM tokens found - skipping notification send');
+      }
     } catch (err) {
       console.error('Error sending FCM for notification create:', err);
     }
