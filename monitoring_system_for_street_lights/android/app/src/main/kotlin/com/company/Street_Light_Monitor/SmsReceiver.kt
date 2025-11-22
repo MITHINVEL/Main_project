@@ -57,15 +57,23 @@ class SmsReceiver : BroadcastReceiver() {
             .whereEqualTo("userId", currentUser.uid)
             .get()
             .addOnSuccessListener { documents ->
+                Log.d(TAG, "Found ${documents.size()} street lights for user ${currentUser.uid}")
+                
                 for (doc in documents) {
-                    val gsmId = doc.getString("gsmId") ?: ""
+                    val gsmNumber = doc.getString("gsmNumber") ?: ""
                     val phoneNumber = doc.getString("phoneNumber") ?: ""
                     
-                    val cleanGsm = gsmId.replace("+", "").replace(" ", "").replace("-", "")
+                    Log.d(TAG, "Checking street light ${doc.id}: gsmNumber=$gsmNumber, phoneNumber=$phoneNumber")
+                    
+                    val cleanGsm = gsmNumber.replace("+", "").replace(" ", "").replace("-", "")
                     val cleanPhone = phoneNumber.replace("+", "").replace(" ", "").replace("-", "")
                     
+                    Log.d(TAG, "Cleaned values: cleanGsm=$cleanGsm, cleanPhone=$cleanPhone, cleanSender=$cleanSender")
+                    
                     // Check if this SMS is from any of user's street lights
-                    if (cleanSender.endsWith(cleanGsm) || cleanSender.endsWith(cleanPhone)) {
+                    if (cleanSender.endsWith(cleanGsm) || cleanSender.endsWith(cleanPhone) || 
+                        cleanGsm.endsWith(cleanSender) || cleanPhone.endsWith(cleanSender)) {
+                        Log.d(TAG, "✅ MATCH FOUND! Creating notification for street light ${doc.id}")
                         // Create notification
                         createNotification(
                             sender = sender,
@@ -76,7 +84,13 @@ class SmsReceiver : BroadcastReceiver() {
                             userId = currentUser.uid
                         )
                         break
+                    } else {
+                        Log.d(TAG, "❌ No match for street light ${doc.id}")
                     }
+                }
+                
+                if (documents.isEmpty) {
+                    Log.w(TAG, "No street lights found for user ${currentUser.uid}")
                 }
             }
             .addOnFailureListener { e ->

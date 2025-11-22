@@ -17,6 +17,7 @@ import 'package:monitoring_system_for_street_lights/screens/profile/about_screen
 import 'package:monitoring_system_for_street_lights/screens/onboarding/onboarding_screen.dart';
 import 'package:monitoring_system_for_street_lights/screens/auth/welcome_screen.dart';
 import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart';
+import 'package:monitoring_system_for_street_lights/services/sms_notification_service.dart';
 import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
 import 'package:monitoring_system_for_street_lights/services/street_light_monitoring_service.dart';
 import 'package:monitoring_system_for_street_lights/services/sms_permission_service.dart';
@@ -30,7 +31,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   print('🔔 Background message received: ${message.messageId}');
   print('📱 Title: ${message.notification?.title}');
   print('📝 Body: ${message.notification?.body}');
-  
+
   // Show local notification when app is in background/terminated
   try {
     await PushNotificationService.displayLocalNotification(
@@ -47,12 +48,14 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> requestSmsPermission() async {
   // Get the app context for dialogs
   final BuildContext? context = navigatorKey.currentContext;
-  
+
   if (context != null) {
     try {
       // Use the comprehensive SMS Permission Service
-      final bool granted = await SmsPermissionService.requestSmsPermission(context);
-      
+      final bool granted = await SmsPermissionService.requestSmsPermission(
+        context,
+      );
+
       if (granted) {
         print('✅ SMS permission granted successfully');
       } else {
@@ -86,7 +89,7 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print("Firebase initialized successfully");
-    
+
     // Register background message handler - MUST be called before any other Firebase code
     FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
     print("✅ Background message handler registered");
@@ -111,6 +114,15 @@ void main() async {
     } catch (e) {
       print("SMS service initialization failed: $e");
       // Don't fail the app if SMS service fails
+    }
+
+    // Initialize SMS Notification Service for real-time alerts
+    try {
+      await SmsNotificationService().initialize();
+      print("✅ SMS notification service initialized");
+    } catch (e) {
+      print("⚠️ SMS notification service initialization failed: $e");
+      // Don't fail the app if SMS notification fails
     }
 
     // Start Street Light Monitoring Service
@@ -346,9 +358,7 @@ class _PermissionCheckWrapperState extends State<PermissionCheckWrapper> {
   @override
   Widget build(BuildContext context) {
     if (_checking) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
+      return const Scaffold(body: Center(child: CircularProgressIndicator()));
     }
 
     // Always proceed to authentication wrapper
