@@ -51,7 +51,7 @@
     </queries>
 
     <application
-        android:label="Street Light Monitor"
+        android:label="Bright Eye"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         
@@ -69,6 +69,15 @@
                 android:name="android.support.FILE_PROVIDER_PATHS"
                 android:resource="@xml/file_paths" />
         </provider>
+        
+        <!-- SMS Receiver for background SMS detection -->
+        <receiver android:name=".SmsReceiver"
+            android:exported="true"
+            android:permission="android.permission.BROADCAST_SMS">
+            <intent-filter android:priority="999">
+                <action android:name="android.provider.Telephony.SMS_RECEIVED"/>
+            </intent-filter>
+        </receiver>
         
         <activity
             android:name=".MainActivity"

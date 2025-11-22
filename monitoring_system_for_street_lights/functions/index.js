@@ -69,21 +69,29 @@ exports.onNotificationCreate = functions.firestore
       },
     };
 
-    // Send notifications to all registered users' FCM tokens
+    // Send notifications ONLY to the user who owns the street light
     const promises = [];
     try {
-      // Get all users with FCM tokens
-      const usersSnapshot = await admin.firestore().collection('users').get();
+      // Get the userId from the notification document
+      const targetUserId = data.userId || data.createdBy;
+      
+      if (!targetUserId) {
+        console.log(`No userId found in notification doc=${docId} - skipping FCM send`);
+        return null;
+      }
+      
+      // Get only this specific user's FCM token
+      const userDoc = await admin.firestore().collection('users').doc(targetUserId).get();
       const tokens = [];
       
-      usersSnapshot.forEach(doc => {
-        const userData = doc.data();
-        if (userData.fcmToken) {
+      if (userDoc.exists) {
+        const userData = userDoc.data();
+        if (userData && userData.fcmToken) {
           tokens.push(userData.fcmToken);
         }
-      });
+      }
 
-      console.log(`Found ${tokens.length} FCM tokens for notification doc=${docId}`);
+      console.log(`Found ${tokens.length} FCM token(s) for user=${targetUserId}, notification doc=${docId}`);
 
       if (tokens.length > 0) {
         // Send to all tokens (batch of 500 max per call)

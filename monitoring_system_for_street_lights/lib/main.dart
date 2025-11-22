@@ -3,8 +3,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_screenutil/flutter_screenutil.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:provider/provider.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:monitoring_system_for_street_lights/providers/auth_provider.dart'
     as AppAuthProvider;
 import 'package:monitoring_system_for_street_lights/screens/home/dashboard_screen.dart';
@@ -17,7 +19,63 @@ import 'package:monitoring_system_for_street_lights/screens/auth/welcome_screen.
 import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart';
 import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
 import 'package:monitoring_system_for_street_lights/services/street_light_monitoring_service.dart';
+import 'package:monitoring_system_for_street_lights/services/sms_permission_service.dart';
 import 'firebase_options.dart';
+
+/// Background message handler - MUST be top-level function
+/// This runs even when app is terminated!
+@pragma('vm:entry-point')
+Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
+  await Firebase.initializeApp();
+  print('🔔 Background message received: ${message.messageId}');
+  print('📱 Title: ${message.notification?.title}');
+  print('📝 Body: ${message.notification?.body}');
+  
+  // Show local notification when app is in background/terminated
+  try {
+    await PushNotificationService.displayLocalNotification(
+      title: message.notification?.title ?? 'Street Light Alert',
+      body: message.notification?.body ?? '',
+      data: message.data,
+    );
+  } catch (e) {
+    print('❌ Error showing background notification: $e');
+  }
+}
+
+/// Request SMS permission for background SMS detection
+Future<void> requestSmsPermission() async {
+  // Get the app context for dialogs
+  final BuildContext? context = navigatorKey.currentContext;
+  
+  if (context != null) {
+    try {
+      // Use the comprehensive SMS Permission Service
+      final bool granted = await SmsPermissionService.requestSmsPermission(context);
+      
+      if (granted) {
+        print('✅ SMS permission granted successfully');
+      } else {
+        print('❌ SMS permission not granted');
+        // Show status message
+        SmsPermissionService.showPermissionStatus(context);
+      }
+    } catch (e) {
+      print('❌ Error requesting SMS permission: $e');
+    }
+  } else {
+    // Fallback for when context is not available
+    print('⚠️ No context available, using fallback permission request');
+    try {
+      final status = await Permission.sms.status;
+      if (!status.isGranted) {
+        await Permission.sms.request();
+      }
+    } catch (e) {
+      print('❌ Fallback permission request failed: $e');
+    }
+  }
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -28,6 +86,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
     print("Firebase initialized successfully");
+    
+    // Register background message handler - MUST be called before any other Firebase code
+    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+    print("✅ Background message handler registered");
+
+    // Request SMS permission FIRST
+    await requestSmsPermission();
 
     // Initialize Push Notification Service
     try {
@@ -80,6 +145,9 @@ void main() async {
   runApp(const MyApp());
 }
 
+// Global navigator key for accessing context from anywhere
+final GlobalKey<NavigatorState> navigatorKey = GlobalKey<NavigatorState>();
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -93,10 +161,11 @@ class MyApp extends StatelessWidget {
         return ChangeNotifierProvider(
           create: (context) => AppAuthProvider.AuthProvider(),
           child: MaterialApp(
+            navigatorKey: navigatorKey,
             title: 'Street Light Monitor',
             debugShowCheckedModeBanner: false,
             theme: ThemeData(primarySwatch: Colors.blue, useMaterial3: true),
-            home: const AuthenticationWrapper(),
+            home: const PermissionCheckWrapper(),
             routes: {
               '/profile/notifications': (context) =>
                   const NotificationsScreen(),
@@ -244,5 +313,46 @@ class AuthenticationWrapper extends StatelessWidget {
         return snapshot.data ?? const OnboardingScreen();
       },
     );
+  }
+}
+
+/// Permission Check Wrapper
+/// Shows permission request screen if SMS permission not granted
+class PermissionCheckWrapper extends StatefulWidget {
+  const PermissionCheckWrapper({super.key});
+
+  @override
+  State<PermissionCheckWrapper> createState() => _PermissionCheckWrapperState();
+}
+
+class _PermissionCheckWrapperState extends State<PermissionCheckWrapper> {
+  bool _checking = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkPermission();
+  }
+
+  Future<void> _checkPermission() async {
+    // Quick permission check, but don't block app access
+    final status = await Permission.sms.status;
+    print('📱 Initial SMS permission status: $status');
+    setState(() {
+      _checking = false;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_checking) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
+    // Always proceed to authentication wrapper
+    // SMS permission is handled dynamically within the app
+    return const AuthenticationWrapper();
   }
 }

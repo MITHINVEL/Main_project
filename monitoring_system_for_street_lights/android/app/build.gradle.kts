@@ -65,4 +65,9 @@ dependencies {
     
     // Multi-dex support for old devices (Android 5.0-6.0)
     implementation("androidx.multidex:multidex:2.0.1")
+    
+    // Firebase dependencies for SmsReceiver.kt
+    implementation(platform("com.google.firebase:firebase-bom:33.7.0"))
+    implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-firestore-ktx")
 }

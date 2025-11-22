@@ -4,10 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter_sms_inbox/flutter_sms_inbox.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// SMS listener service that can work in mock mode or real platform mode.
 /// To enable real SMS reception on Android, set enablePlatformListener = true
 /// and ensure SMS permissions are granted.
+/// 
+/// RELAY MODE: If enabled, this device acts as a central SMS relay that
+/// receives SMS from GSM modules and broadcasts notifications to all users
+/// who have registered that specific GSM number.
 class SmsListenerService {
   bool _listening = false;
   Timer? _smsTimer;
@@ -16,12 +21,19 @@ class SmsListenerService {
   /// If true, the service will attempt to use the platform SMS listener.
   /// Currently kept as mock-only due to Android namespace compatibility issues.
   final bool enablePlatformListener;
+  
+  /// If true, this device acts as a central relay for GSM SMS
+  bool _relayMode = false;
 
   SmsListenerService({this.enablePlatformListener = false});
 
   Future<void> start() async {
     if (_listening) return;
     _listening = true;
+    
+    // Check if relay mode is enabled
+    final prefs = await SharedPreferences.getInstance();
+    _relayMode = prefs.getBool('sms_relay_mode') ?? false;
 
     if (enablePlatformListener) {
       try {
@@ -37,7 +49,7 @@ class SmsListenerService {
           });
 
           print(
-            'SMS Listener started (platform mode - real SMS polling active)',
+            'SMS Listener started (${_relayMode ? "RELAY" : "platform"} mode - real SMS polling active)',
           );
         } else {
           print('SMS permission denied - falling back to mock mode');
@@ -104,11 +116,22 @@ class SmsListenerService {
       // Normalize the number (keep + and digits)
       final normalized = fromNumber.replaceAll(RegExp(r"[^0-9+]"), '');
 
-      // Check if this number exists in street_lights collection using phoneNumber
+      // In RELAY MODE: Create notifications for ALL users who have this GSM number
+      // In NORMAL MODE: Only create for current user's street lights
       final coll = FirebaseFirestore.instance.collection('street_lights');
-      QuerySnapshot<Map<String, dynamic>> qs = await coll
-          .where('phoneNumber', isEqualTo: normalized)
-          .get();
+      
+      QuerySnapshot<Map<String, dynamic>> qs;
+      
+      if (_relayMode) {
+        // RELAY MODE: Get ALL street lights with this phone number (any user)
+        print('🔄 RELAY MODE: Checking all users for GSM number: $normalized');
+        qs = await coll.where('phoneNumber', isEqualTo: normalized).get();
+      } else {
+        // NORMAL MODE: Only current user's street lights
+        qs = await coll
+            .where('phoneNumber', isEqualTo: normalized)
+            .get();
+      }
 
       List<QueryDocumentSnapshot<Map<String, dynamic>>> matches = [];
 
@@ -116,7 +139,9 @@ class SmsListenerService {
         matches = qs.docs;
       } else {
         // Fallback: compare last N digits to support different formats
-        final all = await coll.get();
+        final all = _relayMode 
+            ? await coll.get()  // All users in relay mode
+            : await coll.get(); // Should filter by userId in normal mode
         final normLast = _lastNDigits(normalized, 9);
         for (var doc in all.docs) {
           final smsField = (doc.data()['phoneNumber'] ?? '').toString();
@@ -129,98 +154,131 @@ class SmsListenerService {
       }
 
       if (matches.isNotEmpty) {
-        // Get the user who owns the first matching street light
-        final firstMatch = matches.first;
-        final streetLightData = firstMatch.data();
-        final createdBy = streetLightData['createdBy'] ?? '';
-
-        // Create a notification document with a stable id so clients can
-        // deduplicate and use the doc id as notificationDocId for local display.
-        final notificationsColl = FirebaseFirestore.instance.collection(
-          'notifications',
-        );
-        final docRef = notificationsColl.doc();
-        final docId = docRef.id;
-
-        // Get first matched street light details for display
-        String lightName = '';
-        String lightLocation = '';
-        if (matches.isNotEmpty) {
-          final firstLight = matches.first.data();
-          lightName =
-              (firstLight['name'] ??
-                      firstLight['streetLightNumber'] ??
-                      firstLight['lightNumber'] ??
-                      '')
-                  .toString();
-
-          // Get location/address
-          final fullAddress = firstLight['fullAddress'];
-          if (fullAddress != null && fullAddress['formatted'] != null) {
-            lightLocation = fullAddress['formatted'].toString();
-          } else {
-            lightLocation = (firstLight['address'] ?? '').toString();
+        // In RELAY MODE: Create notification for EACH unique user
+        // In NORMAL MODE: Create one notification for current user
+        
+        if (_relayMode) {
+          // Group by userId to avoid duplicates
+          final Map<String, List<QueryDocumentSnapshot<Map<String, dynamic>>>> userGroups = {};
+          for (var doc in matches) {
+            final userId = doc.data()['createdBy'] ?? doc.data()['userId'] ?? '';
+            if (userId.isNotEmpty) {
+              userGroups[userId] ??= [];
+              userGroups[userId]!.add(doc);
+            }
           }
-        }
-
-        final notificationData = {
-          'id': docId,
-          'from': normalized,
-          'body': message,
-          'timestamp': FieldValue.serverTimestamp(),
-          'source': source,
-          'relatedLights': matches.map((d) => d.id).toList(),
-          'isFixed': false,
-          'createdBy': createdBy, // Associate with street light owner
-          'userId': createdBy,
-          // Add street light details directly to notification
-          'lightName': lightName,
-          'name': lightName,
-          'title': lightName.isNotEmpty ? lightName : 'Street Light Alert',
-          'location': lightLocation,
-          'address': lightLocation,
-        };
-
-        await docRef.set(notificationData);
-
-        // Show OS-level notification locally on this device so it mirrors the
-        // in-app notification immediately (and mark it shown to avoid dupes).
-        try {
-          // try to include the first matched light's name for a nicer title
-          String? firstLightName;
-          if (matches.isNotEmpty) {
-            firstLightName =
-                (matches.first.data()['name'] ??
-                        matches.first.data()['streetLightNumber'] ??
-                        '')
-                    .toString();
+          
+          print('🔄 RELAY MODE: Creating notifications for ${userGroups.length} users');
+          
+          // Create notification for each user
+          for (var entry in userGroups.entries) {
+            final userId = entry.key;
+            final userLights = entry.value;
+            await _createNotificationForUser(
+              userId: userId,
+              fromNumber: normalized,
+              message: message,
+              source: '$source-relay',
+              matchedLights: userLights,
+            );
           }
-
-          await PushNotificationService.displayLocalNotification(
-            title: '📩 New Message',
-            body: message,
-            data: {
-              'type': 'sms_alert',
-              'from': normalized,
-              'relatedLights': matches.map((d) => d.id).toList(),
-              'notificationId': docId,
-              'appName': 'StreetLight Monitor',
-              'lightName': firstLightName ?? '',
-            },
-            notificationDocId: docId,
+        } else {
+          // NORMAL MODE: Single notification
+          final firstMatch = matches.first;
+          final streetLightData = firstMatch.data();
+          final createdBy = streetLightData['createdBy'] ?? '';
+          
+          await _createNotificationForUser(
+            userId: createdBy,
+            fromNumber: normalized,
+            message: message,
+            source: source,
+            matchedLights: matches,
           );
-        } catch (e) {
-          print('Error showing local notification for SMS: $e');
         }
-
-        print(
-          'SMS notification created for user $createdBy (docId=$docId): $message',
-        );
       } else {
         print('No matching street light for number: $normalized');
       }
     } catch (e) {
       print('SMS listener error: $e');
+    }
+  }
+  
+  Future<void> _createNotificationForUser({
+    required String userId,
+    required String fromNumber,
+    required String message,
+    required String source,
+    required List<QueryDocumentSnapshot<Map<String, dynamic>>> matchedLights,
+  }) async {
+    try {
+      final notificationsColl = FirebaseFirestore.instance.collection('notifications');
+      final docRef = notificationsColl.doc();
+      final docId = docRef.id;
+
+      // Get first matched street light details for display
+      String lightName = '';
+      String lightLocation = '';
+      if (matchedLights.isNotEmpty) {
+        final firstLight = matchedLights.first.data();
+        lightName =
+            (firstLight['name'] ??
+                    firstLight['streetLightNumber'] ??
+                    firstLight['lightNumber'] ??
+                    '')
+                .toString();
+
+        // Get location/address
+        final fullAddress = firstLight['fullAddress'];
+        if (fullAddress != null && fullAddress['formatted'] != null) {
+          lightLocation = fullAddress['formatted'].toString();
+        } else {
+          lightLocation = (firstLight['address'] ?? '').toString();
+        }
+      }
+
+      final notificationData = {
+        'id': docId,
+        'from': fromNumber,
+        'body': message,
+        'timestamp': FieldValue.serverTimestamp(),
+        'source': source,
+        'relatedLights': matchedLights.map((d) => d.id).toList(),
+        'isFixed': false,
+        'createdBy': userId,
+        'userId': userId,
+        // Add street light details directly to notification
+        'lightName': lightName,
+        'name': lightName,
+        'title': lightName.isNotEmpty ? lightName : 'Street Light Alert',
+        'location': lightLocation,
+        'address': lightLocation,
+      };
+
+      await docRef.set(notificationData);
+
+      // Show OS-level notification locally on this device
+      try {
+        await PushNotificationService.displayLocalNotification(
+          title: '📩 New Message',
+          body: message,
+          data: {
+            'type': 'sms_alert',
+            'from': fromNumber,
+            'relatedLights': matchedLights.map((d) => d.id).toList(),
+            'notificationId': docId,
+            'appName': 'StreetLight Monitor',
+            'lightName': lightName,
+          },
+          notificationDocId: docId,
+        );
+      } catch (e) {
+        print('Error showing local notification for SMS: $e');
+      }
+
+      print('✅ SMS notification created for user $userId (docId=$docId): $message');
+    } catch (e) {
+      print('❌ Error creating notification for user $userId: $e');
     }
   }
 
