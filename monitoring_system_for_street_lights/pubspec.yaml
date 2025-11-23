@@ -79,7 +79,6 @@ dependencies:
   flutter_local_notifications: ^19.4.2
   flutter_sms_inbox: ^1.0.4
   cached_network_image: ^3.4.1
-  telephony: ^0.2.0
 
 dev_dependencies:
   flutter_test:

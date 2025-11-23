@@ -1,6 +1,5 @@
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:permission_handler/permission_handler.dart';
-import 'package:telephony/telephony.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -11,7 +10,6 @@ class SmsNotificationService {
   factory SmsNotificationService() => _instance;
   SmsNotificationService._internal();
 
-  final Telephony telephony = Telephony.instance;
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();
 
@@ -38,8 +36,6 @@ class SmsNotificationService {
       // Load saved GSM numbers
       await _loadStreetLightNumbers();
 
-      // Start SMS listener
-      await _startSmsListener();
 
       _isInitialized = true;
       print('✅ SMS Notification Service initialized successfully');
@@ -104,24 +100,10 @@ class SmsNotificationService {
     print('✅ Notifications initialized');
   }
 
-  /// Start SMS listener
-  Future<void> _startSmsListener() async {
-    try {
-      telephony.listenIncomingSms(
-        onNewMessage: (SmsMessage message) {
-          _handleIncomingSms(message);
-        },
-        onBackgroundMessage: backgroundMessageHandler,
-        listenInBackground: true,
-      );
-      print('✅ SMS listener started');
-    } catch (e) {
-      print('❌ Error starting SMS listener: $e');
-    }
-  }
+
 
   /// Handle incoming SMS
-  void _handleIncomingSms(SmsMessage message) {
+  void _handleIncomingSms( message) {
     final sender = message.address ?? 'Unknown';
     final body = message.body ?? '';
     final timestamp = (message.date != null && message.date is DateTime)
@@ -313,7 +295,7 @@ class SmsNotificationService {
 
 /// Background message handler (must be top-level function)
 @pragma('vm:entry-point')
-void backgroundMessageHandler(SmsMessage message) {
+void backgroundMessageHandler(message) {
   print('📱 Background SMS received from: ${message.address}');
   print('📱 Message: ${message.body}');
 

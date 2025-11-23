@@ -17,19 +17,11 @@ service cloud.firestore {
       // This allows SmsReceiver to query and match phone numbers
       allow read: if isSignedIn();
 
-      // Update: owner (check both createdBy and userId) or admin
-      allow update: if isSignedIn() && (
-        (resource.data.keys().hasAny(['createdBy']) && resource.data.createdBy == request.auth.uid) ||
-        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
-        isAdmin()
-      );
+      // Update: ANY signed-in user (since all users in your app are owners)
+      allow update: if isSignedIn();
 
-      // Delete: owner (check both createdBy and userId) or admin
-      allow delete: if isSignedIn() && (
-        (resource.data.keys().hasAny(['createdBy']) && resource.data.createdBy == request.auth.uid) ||
-        (resource.data.keys().hasAny(['userId']) && resource.data.userId == request.auth.uid) ||
-        isAdmin()
-      );
+      // Delete: ANY signed-in user (since all users in your app are owners)
+      allow delete: if isSignedIn();
     }
 
     match /notifications/{notifId} {

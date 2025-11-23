@@ -16,7 +16,7 @@ import 'package:monitoring_system_for_street_lights/screens/profile/help_support
 import 'package:monitoring_system_for_street_lights/screens/profile/about_screen.dart';
 import 'package:monitoring_system_for_street_lights/screens/onboarding/onboarding_screen.dart';
 import 'package:monitoring_system_for_street_lights/screens/auth/welcome_screen.dart';
-import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart';
+// import 'package:monitoring_system_for_street_lights/services/sms_listener_service.dart'; // DISABLED: Using native SmsReceiver.kt
 import 'package:monitoring_system_for_street_lights/services/sms_notification_service.dart';
 import 'package:monitoring_system_for_street_lights/services/push_notification_service.dart';
 import 'package:monitoring_system_for_street_lights/services/street_light_monitoring_service.dart';
@@ -107,6 +107,8 @@ void main() async {
     }
 
     // Initialize SMS Listener Service with platform listener enabled
+    // DISABLED: Using native SmsReceiver.kt instead
+    /*
     try {
       final smsService = SmsListenerService(enablePlatformListener: true);
       await smsService.start();
@@ -115,6 +117,7 @@ void main() async {
       print("SMS service initialization failed: $e");
       // Don't fail the app if SMS service fails
     }
+    */
 
     // Initialize SMS Notification Service for real-time alerts
     try {
