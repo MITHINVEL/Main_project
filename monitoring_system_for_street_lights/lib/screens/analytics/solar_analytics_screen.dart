@@ -188,12 +188,12 @@ class _SolarAnalyticsScreenState extends State<SolarAnalyticsScreen>
         // Update weather data
         final weather = realTimeData['weather'] ?? {};
         _weatherData = {
-          'temperature': weather['main']?['temp'] ?? 25.0,
+          'temperature': (weather['main']?['temp'] ?? 25.0).toDouble(),
           'description': weather['weather']?[0]?['description'] ?? 'clear sky',
-          'cloudCover': weather['clouds']?['all'] ?? 20,
+          'cloudCover': (weather['clouds']?['all'] ?? 20).toDouble(),
           'condition': weather['weather']?[0]?['main'] ?? 'Clear',
-          'humidity': weather['main']?['humidity'] ?? 60,
-          'windSpeed': weather['wind']?['speed'] ?? 5.0,
+          'humidity': (weather['main']?['humidity'] ?? 60).toDouble(),
+          'windSpeed': (weather['wind']?['speed'] ?? 5.0).toDouble(),
           'icon': weather['weather']?[0]?['icon'] ?? '01d',
         };
 
@@ -343,7 +343,7 @@ class _SolarAnalyticsScreenState extends State<SolarAnalyticsScreen>
         _weatherData = {
           'temperature': weatherObj.temperature,
           'description': weatherObj.description,
-          'cloudCover': 20, // Demo value
+          'cloudCover': weatherObj.cloudCover,
           'condition': weatherObj.description,
           'humidity': weatherObj.humidity,
           'windSpeed': weatherObj.windSpeed,

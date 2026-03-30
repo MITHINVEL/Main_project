@@ -11,6 +11,7 @@ class StreetLightMonitoringService {
   static StreamSubscription<QuerySnapshot>? _monitoringSubscription;
   static Map<String, Map<String, dynamic>> _lastKnownStatus = {};
   static bool _isMonitoring = false;
+  static bool _initialSnapshotLoaded = false; // ignore: prefer_final_fields
 
   /// Start monitoring street lights for the current user
   static Future<void> startMonitoring() async {
@@ -39,9 +40,6 @@ class StreetLightMonitoringService {
 
       _isMonitoring = true;
       print('✅ Street light monitoring started');
-
-      // Send welcome notification
-      await _sendWelcomeNotification();
     } catch (e) {
       print('❌ Error starting monitoring: $e');
     }
@@ -54,6 +52,7 @@ class StreetLightMonitoringService {
       _monitoringSubscription = null;
       _isMonitoring = false;
       _lastKnownStatus.clear();
+      _initialSnapshotLoaded = false;
 
       print('🛑 Street light monitoring stopped');
     } catch (e) {
@@ -64,6 +63,18 @@ class StreetLightMonitoringService {
   /// Handle street light changes and send notifications
   static Future<void> _handleStreetLightChanges(QuerySnapshot snapshot) async {
     try {
+      // First snapshot: just seed _lastKnownStatus, don't fire any notifications
+      if (!_initialSnapshotLoaded) {
+        for (final doc in snapshot.docs) {
+          final data = doc.data() as Map<String, dynamic>?;
+          if (data != null) {
+            _lastKnownStatus[doc.id] = Map<String, dynamic>.from(data);
+          }
+        }
+        _initialSnapshotLoaded = true;
+        return;
+      }
+
       for (final docChange in snapshot.docChanges) {
         final lightData = docChange.doc.data() as Map<String, dynamic>?;
         if (lightData == null) continue;
@@ -360,23 +371,6 @@ class StreetLightMonitoringService {
     }
   }
 
-  /// Send welcome notification
-  static Future<void> _sendWelcomeNotification() async {
-    try {
-      await Future.delayed(const Duration(seconds: 2)); // Delay for better UX
-
-      await _sendNotification(
-        title: '🎉 Real-Time Monitoring Active',
-        body:
-            'Your street lights are now being monitored 24/7. You\'ll receive instant alerts!',
-        data: {'type': 'welcome', 'priority': 'normal'},
-      );
-
-      print('📱 Sent welcome notification');
-    } catch (e) {
-      print('❌ Error sending welcome notification: $e');
-    }
-  }
 
   /// Simulate street light events (for testing)
   static Future<void> simulateEvents() async {

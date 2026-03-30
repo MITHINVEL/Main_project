@@ -13,7 +13,7 @@ import '../analytics/solar_analytics_screen.dart';
 import '../../widgets/weather_widget.dart';
 import '../../services/user_service.dart';
 import '../../models/user_model.dart';
-
+import '../../services/push_notification_service.dart';
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
 
@@ -46,12 +46,21 @@ class _DashboardScreenState extends State<DashboardScreen>
     _statsController.forward();
     _getCurrentUser();
 
+    // Call this after ensuring we have a user to setup FCM properly
+    _setupNotifications();
+
     // Listen for auth state changes to refresh profile
     FirebaseAuth.instance.authStateChanges().listen((User? user) {
       if (user != _currentUser) {
         _getCurrentUser();
       }
     });
+  }
+
+  void _setupNotifications() async {
+    if (FirebaseAuth.instance.currentUser != null) {
+      await PushNotificationService.setupAfterLogin();
+    }
   }
 
   // Method to refresh user profile (called when returning from profile screen)

@@ -46,13 +46,26 @@ class UserModel {
       name: map['name'] ?? '',
       email: map['email'] ?? '',
       photoUrl: map['photoUrl'],
-      createdAt: DateTime.fromMillisecondsSinceEpoch(map['createdAt'] ?? 0),
-      lastLoginAt: DateTime.fromMillisecondsSinceEpoch(map['lastLoginAt'] ?? 0),
+      createdAt: _parseDateTime(map['createdAt']),
+      lastLoginAt: _parseDateTime(map['lastLoginAt']),
       role: map['role'] ?? 'user',
       isActive: map['isActive'] ?? true,
       provider: map['provider'],
       preferences: Map<String, dynamic>.from(map['preferences'] ?? {}),
     );
+  }
+
+  /// Parse DateTime from Firestore Timestamp or int (milliseconds)
+  static DateTime _parseDateTime(dynamic value) {
+    if (value == null) return DateTime.now();
+    if (value is int) return DateTime.fromMillisecondsSinceEpoch(value);
+    if (value is DateTime) return value;
+    // Handle Firestore Timestamp - has toDate() method
+    try {
+      return (value as dynamic).toDate();
+    } catch (_) {
+      return DateTime.now();
+    }
   }
 
   // Copy with method

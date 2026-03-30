@@ -38,10 +38,36 @@ class PushNotificationService {
 
     await _loadShownNotificationIds();
     await _initializeLocalNotifications();
-    await _initializeFCM();
     _setupMessageHandlers();
-    await _getFCMToken();
-    await _subscribeToTopics();
+  }
+
+  /// Call this when user logs in or is already logged in at app start
+  static Future<void> setupAfterLogin() async {
+    bool hasPermission = await _initializeFCM();
+    if (hasPermission) {
+      await _getFCMToken();
+      await _subscribeToTopics();
+    } else {
+      print('Notification permission denied by user. Skipping token retrieval.');
+    }
+  }
+
+  /// Clear FCM Token in Firestore on logout
+  static Future<void> clearFCMTokenOnLogout() async {
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null && _fcmToken != null) {
+        await _firestore.collection('users').doc(user.uid).update({
+          'fcmTokens': FieldValue.arrayRemove([_fcmToken]),
+        });
+        print('✅ FCM token removed from Firestore on logout');
+      }
+      
+      await _firebaseMessaging.deleteToken();
+      _fcmToken = null;
+    } catch (e) {
+      print('❌ Error clearing FCM token on logout: $e');
+    }
   }
 
   /// Initialize local notifications plugin and create channel on Android.
@@ -86,9 +112,24 @@ class PushNotificationService {
   }
 
   /// Request permissions and configure presentation options for FCM.
-  static Future<void> _initializeFCM() async {
+  static Future<bool> _initializeFCM() async {
     try {
       await _firebaseMessaging.setAutoInitEnabled(true);
+
+      // Request permission (handles iOS explicitly)
+      final settings = await _firebaseMessaging.requestPermission(
+        alert: true,
+        announcement: false,
+        badge: true,
+        carPlay: false,
+        criticalAlert: false,
+        provisional: false,
+        sound: true,
+      );
+      print('📱 FCM Permission status: ${settings.authorizationStatus}');
+
+      bool isGranted = settings.authorizationStatus == AuthorizationStatus.authorized || 
+                       settings.authorizationStatus == AuthorizationStatus.provisional;
 
       // iOS presentation options
       await _firebaseMessaging.setForegroundNotificationPresentationOptions(
@@ -101,11 +142,14 @@ class PushNotificationService {
       if (Platform.isAndroid) {
         final status = await Permission.notification.request();
         print('📱 System Notification Permission: $status');
+        isGranted = status.isGranted;
       }
 
-      print('✅ FCM initialized');
+      print('✅ FCM initialized. Permission granted: $isGranted');
+      return isGranted;
     } catch (e) {
       print('❌ Error initializing FCM: $e');
+      return false;
     }
   }
 
@@ -171,11 +215,13 @@ class PushNotificationService {
     try {
       final user = FirebaseAuth.instance.currentUser;
       if (user != null) {
-        await _firestore.collection('users').doc(user.uid).update({
-          'fcmToken': token,
+        await _firestore.collection('users').doc(user.uid).set({
+          'fcmTokens': FieldValue.arrayUnion([token]),
+          // Keep old single token for backward compatibility with external scripts if any
+          'fcmToken': token, 
           'lastTokenUpdate': FieldValue.serverTimestamp(),
           'platform': Platform.isAndroid ? 'android' : 'ios',
-        });
+        }, SetOptions(merge: true));
         print('✅ FCM token saved to Firestore');
       }
     } catch (e) {
@@ -210,6 +256,16 @@ class PushNotificationService {
   static Future<void> _handleForegroundMessage(RemoteMessage message) async {
     try {
       print('🔔 Foreground message received: ${message.data}');
+
+      // Prevent flood of old pending messages that get delivered when the app opens
+      if (message.sentTime != null) {
+        final difference = DateTime.now().difference(message.sentTime!);
+        if (difference.inSeconds > 60) {
+          print('Skipping local notification for old pending message (${difference.inSeconds}s old)');
+          await _saveNotificationToFirestore(message);
+          return;
+        }
+      }
 
       final data = Map<String, dynamic>.from(message.data);
       final docId =
@@ -418,6 +474,11 @@ class PushNotificationService {
     String? notificationDocId,
   }) async {
     try {
+      // Background isolate may not have initialized the plugin yet
+      if (!_initialized) {
+        await _initializeLocalNotifications();
+      }
+
       final androidDetails = AndroidNotificationDetails(
         'street_lights_channel',
         'Street Lights Notifications',

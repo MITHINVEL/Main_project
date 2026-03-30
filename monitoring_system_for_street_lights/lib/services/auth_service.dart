@@ -2,6 +2,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import '../models/user_model.dart';
+import 'push_notification_service.dart';
 
 class AuthService {
   final FirebaseAuth _auth = FirebaseAuth.instance;
@@ -91,6 +92,7 @@ class AuthService {
   // Sign out from Google
   Future<void> signOutFromGoogle() async {
     try {
+      await PushNotificationService.clearFCMTokenOnLogout();
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {
@@ -199,6 +201,7 @@ class AuthService {
   // Sign out
   Future<void> signOut() async {
     try {
+      await PushNotificationService.clearFCMTokenOnLogout();
       await _googleSignIn.signOut();
       await _auth.signOut();
     } catch (e) {

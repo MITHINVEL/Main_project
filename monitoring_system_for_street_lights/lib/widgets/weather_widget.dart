@@ -12,24 +12,41 @@ class WeatherWidget extends StatefulWidget {
   State<WeatherWidget> createState() => _WeatherWidgetState();
 }
 
-class _WeatherWidgetState extends State<WeatherWidget> {
+class _WeatherWidgetState extends State<WeatherWidget> with WidgetsBindingObserver {
   WeatherData? _currentWeather;
   UVData? _uvData;
 
   bool _isLoading = true;
   String? _error;
-  String _locationName = 'Getting location...'; // Store real location name
+  bool _isLocationError = false;
+  String _locationName = 'Getting location...';
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadWeatherData();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // When user comes back from location settings, auto-retry
+    if (state == AppLifecycleState.resumed && _isLocationError) {
+      _loadWeatherData();
+    }
   }
 
   Future<void> _loadWeatherData() async {
     setState(() {
       _isLoading = true;
       _error = null;
+      _isLocationError = false;
       _locationName = 'Getting location...';
     });
 
@@ -61,7 +78,15 @@ class _WeatherWidgetState extends State<WeatherWidget> {
           locationName = 'Current Location';
         }
       } else {
-        print('Using default location: $locationName');
+        // GPS failed - show error with option to open location settings
+        if (mounted) {
+          setState(() {
+            _isLocationError = true;
+            _error = 'Unable to get your location.\nPlease enable location services.';
+            _isLoading = false;
+          });
+        }
+        return;
       }
 
       // Try to fetch weather data for current/detected location
@@ -130,10 +155,11 @@ class _WeatherWidgetState extends State<WeatherWidget> {
       feelsLike: 30.0,
       humidity: 65,
       windSpeed: 2.5,
-      pressure: 1013,
+      pressure: 1012,
       icon: '02d',
       cityName: 'Erode, Tamil Nadu',
       visibility: 10,
+      cloudCover: 40, // Example value for cloud cover
     );
   }
 

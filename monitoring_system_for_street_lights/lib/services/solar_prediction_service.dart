@@ -1,19 +1,80 @@
 import 'dart:convert';
 import 'dart:math';
 import 'package:http/http.dart' as http;
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/solar_analytics_model.dart';
 
 /// Solar Prediction Service
 /// Provides AI-powered predictions for solar energy generation
 /// Based on weather data, historical patterns, and machine learning
 class SolarPredictionService {
-  static const String _openWeatherApiKey = '9aaa7a0dd6acc169507254447ca8c68b';
-  static const String _openUvApiKey = 'openuv-1bz6hrmgyuriwb-io';
-
   static const String _weatherBaseUrl =
-      'https://api.openweathermap.org/data/2.5';
-  static const String _uvBaseUrl = 'https://api.openuv.io/api/v1';
+      'https://api.open-meteo.com/v1/forecast';
+
+  /// Get solar prediction for multiple days
+  Future<Map<String, dynamic>> getSolarPrediction({
+    required double latitude,
+    required double longitude,
+    required double systemCapacity,
+    int days = 7,
+  }) async {
+    try {
+      // Fetch data ONCE and reuse for all days
+      final hourlyPredictions = await predict24HourGeneration(
+        latitude: latitude,
+        longitude: longitude,
+        panelCapacity: systemCapacity,
+      );
+
+      List<Map<String, dynamic>> predictions = [];
+
+      for (int day = 0; day < days; day++) {
+        final date = DateTime.now().add(Duration(days: day));
+
+        // Aggregate daily data from the single prediction
+        double totalGeneration = hourlyPredictions.fold(
+          0.0,
+          (sum, pred) => sum + pred.generation,
+        );
+        double avgEfficiency = hourlyPredictions.fold(
+          0.0,
+          (sum, pred) => sum + pred.efficiency,
+        ) / hourlyPredictions.length;
+        double avgConfidence = hourlyPredictions.fold(
+          0.0,
+          (sum, pred) => sum + pred.confidence,
+        ) / hourlyPredictions.length;
+
+        // Apply slight variance for future days
+        double dayFactor = 1.0 - (day * 0.02);
+
+        predictions.add({
+          'date': date.toIso8601String(),
+          'dateFormatted': '${_getDayName(date.weekday)}, ${date.day}/${date.month}',
+          'energyGeneration': totalGeneration * dayFactor,
+          'efficiency': avgEfficiency,
+          'confidence': (avgConfidence * 100) * dayFactor,
+          'weather': hourlyPredictions.isNotEmpty ? hourlyPredictions[12].conditions : 'Clear',
+        });
+      }
+
+      return {
+        'success': true,
+        'predictions': predictions,
+      };
+    } catch (e) {
+      print('❌ getSolarPrediction error: $e');
+      return {
+        'success': false,
+        'error': e.toString(),
+        'predictions': [],
+      };
+    }
+  }
+  
+  static String _getDayName(int weekday) {
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    return days[weekday - 1];
+  }
 
   /// Predict solar energy generation for next 24 hours
   static Future<List<SolarPrediction>> predict24HourGeneration({
@@ -159,85 +220,81 @@ class SolarPredictionService {
   ) async {
     try {
       final url =
-          '$_weatherBaseUrl/forecast?lat=$latitude&lon=$longitude&appid=$_openWeatherApiKey&units=metric';
+          '$_weatherBaseUrl?latitude=$latitude&longitude=$longitude'
+          '&hourly=temperature_2m,relative_humidity_2m,cloud_cover,weather_code,wind_speed_10m'
+          '&timezone=auto&forecast_days=2';
       final response = await http.get(Uri.parse(url));
 
       if (response.statusCode == 200) {
-        return json.decode(response.body);
+        final data = json.decode(response.body);
+        // Convert Open-Meteo format to match expected structure
+        final hourly = data['hourly'];
+        final times = hourly['time'] as List;
+        final temps = hourly['temperature_2m'] as List;
+        final humidity = hourly['relative_humidity_2m'] as List;
+        final clouds = hourly['cloud_cover'] as List;
+        final wind = hourly['wind_speed_10m'] as List;
+        final codes = hourly['weather_code'] as List;
+
+        List<Map<String, dynamic>> list = [];
+        for (int i = 0; i < times.length; i++) {
+          list.add({
+            'main': {
+              'temp': temps[i],
+              'humidity': humidity[i],
+            },
+            'clouds': {'all': clouds[i]},
+            'wind': {'speed': (wind[i] as num).toDouble() / 3.6},
+            'weather': [{'main': _wmoToCondition((codes[i] as num).toInt())}],
+          });
+        }
+        return {'list': list};
       }
 
       throw Exception('Weather API error: ${response.statusCode}');
     } catch (e) {
       print('❌ Weather forecast error: $e');
-      return {}; // Return empty map for fallback
+      return {};
     }
+  }
+
+  static String _wmoToCondition(int code) {
+    if (code <= 1) return 'Clear';
+    if (code <= 3) return 'Clouds';
+    if (code <= 48) return 'Fog';
+    if (code <= 55) return 'Drizzle';
+    if (code <= 67) return 'Rain';
+    if (code <= 77) return 'Snow';
+    if (code <= 82) return 'Rain';
+    if (code >= 95) return 'Thunderstorm';
+    return 'Clear';
   }
 
   static Future<Map<String, dynamic>> _getUVForecast(
     double latitude,
     double longitude,
   ) async {
-    try {
-      final url = '$_uvBaseUrl/forecast?lat=$latitude&lng=$longitude';
-      final response = await http.get(
-        Uri.parse(url),
-        headers: {'x-access-token': _openUvApiKey},
-      );
-
-      if (response.statusCode == 200) {
-        return json.decode(response.body);
-      }
-
-      throw Exception('UV API error: ${response.statusCode}');
-    } catch (e) {
-      print('❌ UV forecast error: $e');
-      return {}; // Return empty map for fallback
+    // Estimate UV from solar position instead of calling external API
+    // The OpenUV free tier is unreliable with 403 errors
+    final hour = DateTime.now().hour;
+    double estimatedUV = 0.0;
+    if (hour >= 6 && hour <= 18) {
+      estimatedUV = 8.0 * sin((hour - 6) * pi / 12);
     }
+    return {'estimated_uv': estimatedUV};
   }
 
   static Future<Map<String, dynamic>> _getHistoricalData(
     double latitude,
     double longitude,
   ) async {
-    try {
-      // Get historical solar data from Firestore
-      final firestore = FirebaseFirestore.instance;
-      final query = await firestore
-          .collection('solar_analytics')
-          .where('latitude', isGreaterThan: latitude - 0.1)
-          .where('latitude', isLessThan: latitude + 0.1)
-          .limit(30)
-          .get();
-
-      Map<String, dynamic> historicalData = {
-        'avg_generation': 0.0,
-        'avg_efficiency': 0.20,
-        'seasonal_factor': 1.0,
-      };
-
-      if (query.docs.isNotEmpty) {
-        double totalGeneration = 0.0;
-        double totalEfficiency = 0.0;
-
-        for (var doc in query.docs) {
-          final data = doc.data();
-          totalGeneration += (data['generation'] ?? 0.0);
-          totalEfficiency += (data['efficiency'] ?? 0.20);
-        }
-
-        historicalData['avg_generation'] = totalGeneration / query.docs.length;
-        historicalData['avg_efficiency'] = totalEfficiency / query.docs.length;
-      }
-
-      return historicalData;
-    } catch (e) {
-      print('❌ Historical data error: $e');
-      return {
-        'avg_generation': 8.5,
-        'avg_efficiency': 0.18,
-        'seasonal_factor': 0.9,
-      };
-    }
+    // Use default historical estimates instead of querying Firestore
+    // (solar_analytics collection requires additional Firestore rules)
+    return {
+      'avg_generation': 8.5,
+      'avg_efficiency': 0.18,
+      'seasonal_factor': 0.9,
+    };
   }
 
   static Future<SolarPrediction> _predictHourlyGeneration({

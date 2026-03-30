@@ -1,34 +1,27 @@
+import 'dart:convert';
+import 'dart:math';
+import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
+
+const String _baseUrl = 'https://api.open-meteo.com/v1/forecast';
 
 class WeatherService {
- static Future<WeatherData?> getCurrentWeather(double lat, double lon) async {
+  static Future<WeatherData?> getCurrentWeather(double lat, double lon) async {
     try {
-      await Future.delayed(Duration(seconds: 1)); // Simulate network delay
-
-      return WeatherData(
-        temperature: 28.5,
-        description: 'Partly Cloudy',
-        humidity: 65,
-        windSpeed: 12.0,
-        icon: '02d',
-        cityName: 'Current Location',
-        feelsLike: 31.2,
-        pressure: 1013,
-        visibility: 10,
-      );
-
-      // Uncomment below for actual API call:
-      /*
-      final url = '$_baseUrl/weather?lat=$lat&lon=$lon&appid=$_apiKey&units=metric';
+      final url =
+          '$_baseUrl?latitude=$lat&longitude=$lon'
+          '&current=temperature_2m,relative_humidity_2m,apparent_temperature,'
+          'weather_code,wind_speed_10m,surface_pressure,cloud_cover'
+          '&timezone=auto';
       final response = await http.get(Uri.parse(url));
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        return WeatherData.fromJson(data);
+        return WeatherData.fromOpenMeteo(data);
       }
       return null;
-      */
     } catch (e) {
-      print('Error fetching weather: $e');
+      debugPrint('Error fetching weather: $e');
       return null;
     }
   }
@@ -39,89 +32,97 @@ class WeatherService {
     double lon,
   ) async {
     try {
-      // For demo purposes, return sample forecast data
-      await Future.delayed(Duration(seconds: 1)); // Simulate network delay
-
-      return [
-        WeatherForecast(
-          dateTime: DateTime.now().add(Duration(days: 1)),
-          temperature: 30.0,
-          description: 'Sunny',
-          icon: '01d',
-        ),
-        WeatherForecast(
-          dateTime: DateTime.now().add(Duration(days: 2)),
-          temperature: 27.5,
-          description: 'Cloudy',
-          icon: '03d',
-        ),
-        WeatherForecast(
-          dateTime: DateTime.now().add(Duration(days: 3)),
-          temperature: 25.0,
-          description: 'Rainy',
-          icon: '10d',
-        ),
-        WeatherForecast(
-          dateTime: DateTime.now().add(Duration(days: 4)),
-          temperature: 29.0,
-          description: 'Partly Cloudy',
-          icon: '02d',
-        ),
-        WeatherForecast(
-          dateTime: DateTime.now().add(Duration(days: 5)),
-          temperature: 32.0,
-          description: 'Sunny',
-          icon: '01d',
-        ),
-      ];
-
-      // Uncomment below for actual API call:
-      /*
-      final url = '$_baseUrl/forecast?lat=$lat&lon=$lon&appid=$_apiKey&units=metric';
+      final url =
+          '$_baseUrl?latitude=$lat&longitude=$lon'
+          '&hourly=temperature_2m,weather_code'
+          '&timezone=auto&forecast_hours=15';
       final response = await http.get(Uri.parse(url));
-      
+
       if (response.statusCode == 200) {
         final data = json.decode(response.body);
-        final List<dynamic> forecastList = data['list'];
-        
-        return forecastList.take(5).map((item) => WeatherForecast.fromJson(item)).toList();
+        final hourly = data['hourly'];
+        final times = hourly['time'] as List;
+        final temps = hourly['temperature_2m'] as List;
+        final codes = hourly['weather_code'] as List;
+
+        List<WeatherForecast> forecasts = [];
+        for (int i = 0; i < min(5, times.length); i++) {
+          final code = (codes[i] as num).toInt();
+          forecasts.add(WeatherForecast(
+            dateTime: DateTime.parse(times[i]),
+            temperature: (temps[i] as num).toDouble(),
+            description: _wmoDescription(code),
+            icon: _wmoToIcon(code),
+          ));
+        }
+        return forecasts;
       }
       return null;
-      */
     } catch (e) {
-      print('Error fetching forecast: $e');
+      debugPrint('Error fetching forecast: $e');
       return null;
     }
   }
 
-  // Get UV Index (sunshine data)
+  // Get UV Index (estimated from cloud cover & solar position)
   static Future<UVData?> getUVIndex(double lat, double lon) async {
     try {
-      // For demo purposes, return sample UV data
-      await Future.delayed(
-        Duration(milliseconds: 500),
-      ); // Simulate network delay
-
-      return UVData(
-        uvIndex: 6.5, // Moderate UV index
-        dateTime: DateTime.now(),
-      );
-
-      // Uncomment below for actual API call:
-      /*
-      final url = 'https://api.openweathermap.org/data/2.5/uvi?lat=$lat&lon=$lon&appid=$_apiKey';
-      final response = await http.get(Uri.parse(url));
-      
-      if (response.statusCode == 200) {
-        final data = json.decode(response.body);
-        return UVData.fromJson(data);
+      final weather = await getCurrentWeather(lat, lon);
+      if (weather != null) {
+        final hour = DateTime.now().hour;
+        double estimatedUV = 0.0;
+        if (hour >= 6 && hour <= 18) {
+          double solarFactor = sin((hour - 6) * pi / 12);
+          double cloudFactor = 1.0 - (weather.cloudCover / 100.0) * 0.75;
+          estimatedUV = 10.0 * solarFactor * cloudFactor;
+        }
+        return UVData(
+          uvIndex: estimatedUV.clamp(0.0, 12.0),
+          dateTime: DateTime.now(),
+        );
       }
       return null;
-      */
     } catch (e) {
-      print('Error fetching UV data: $e');
+      debugPrint('Error fetching UV data: $e');
       return null;
     }
+  }
+
+  /// Map WMO weather code to description
+  static String _wmoDescription(int code) {
+    switch (code) {
+      case 0: return 'Clear sky';
+      case 1: return 'Mainly clear';
+      case 2: return 'Partly cloudy';
+      case 3: return 'Overcast';
+      case 45: case 48: return 'Foggy';
+      case 51: case 53: case 55: return 'Drizzle';
+      case 61: case 63: case 65: return 'Rain';
+      case 66: case 67: return 'Freezing rain';
+      case 71: case 73: case 75: return 'Snowfall';
+      case 77: return 'Snow grains';
+      case 80: case 81: case 82: return 'Rain showers';
+      case 85: case 86: return 'Snow showers';
+      case 95: return 'Thunderstorm';
+      case 96: case 99: return 'Thunderstorm with hail';
+      default: return 'Clear sky';
+    }
+  }
+
+  /// Map WMO weather code to icon code (compatible with existing icon logic)
+  static String _wmoToIcon(int code) {
+    final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
+    final suffix = isDay ? 'd' : 'n';
+    if (code == 0 || code == 1) return '01$suffix';
+    if (code == 2) return '02$suffix';
+    if (code == 3) return '04$suffix';
+    if (code == 45 || code == 48) return '50$suffix';
+    if (code >= 51 && code <= 55) return '09$suffix';
+    if (code >= 61 && code <= 67) return '10$suffix';
+    if (code >= 71 && code <= 77) return '13$suffix';
+    if (code >= 80 && code <= 82) return '09$suffix';
+    if (code >= 95) return '11$suffix';
+    return '01$suffix';
   }
 }
 
@@ -136,6 +137,7 @@ class WeatherData {
   final double feelsLike;
   final int pressure;
   final int visibility;
+  final int cloudCover;
 
   WeatherData({
     required this.temperature,
@@ -147,8 +149,52 @@ class WeatherData {
     required this.feelsLike,
     required this.pressure,
     required this.visibility,
+    required this.cloudCover,
   });
 
+  /// Parse from Open-Meteo API response
+  factory WeatherData.fromOpenMeteo(Map<String, dynamic> json) {
+    final current = json['current'];
+    final code = (current['weather_code'] as num).toInt();
+    final isDay = DateTime.now().hour >= 6 && DateTime.now().hour < 18;
+    final suffix = isDay ? 'd' : 'n';
+
+    String icon;
+    if (code == 0 || code == 1) {
+      icon = '01$suffix';
+    } else if (code == 2) {
+      icon = '02$suffix';
+    } else if (code == 3) {
+      icon = '04$suffix';
+    } else if (code >= 51 && code <= 55) {
+      icon = '09$suffix';
+    } else if (code >= 61 && code <= 67) {
+      icon = '10$suffix';
+    } else if (code >= 95) {
+      icon = '11$suffix';
+    } else {
+      icon = '01$suffix';
+    }
+
+    // Wind speed from km/h to m/s
+    final windKmh = (current['wind_speed_10m'] as num).toDouble();
+    final windMs = windKmh / 3.6;
+
+    return WeatherData(
+      temperature: (current['temperature_2m'] as num).toDouble(),
+      humidity: (current['relative_humidity_2m'] as num).toInt(),
+      windSpeed: windMs,
+      description: WeatherService._wmoDescription(code),
+      icon: icon,
+      cityName: '',
+      feelsLike: (current['apparent_temperature'] as num).toDouble(),
+      pressure: (current['surface_pressure'] as num).toInt(),
+      visibility: 10,
+      cloudCover: (current['cloud_cover'] as num).toInt(),
+    );
+  }
+
+  /// Legacy OpenWeatherMap parser (kept for compatibility)
   factory WeatherData.fromJson(Map<String, dynamic> json) {
     return WeatherData(
       temperature: (json['main']['temp'] as num).toDouble(),
@@ -159,7 +205,8 @@ class WeatherData {
       cityName: json['name'] as String,
       feelsLike: (json['main']['feels_like'] as num).toDouble(),
       pressure: json['main']['pressure'] as int,
-      visibility: (json['visibility'] as int) ~/ 1000, // Convert to km
+      visibility: (json['visibility'] as int) ~/ 1000,
+      cloudCover: json['clouds']?['all'] ?? 20,
     );
   }
 

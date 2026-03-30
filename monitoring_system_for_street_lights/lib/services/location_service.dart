@@ -1,7 +1,5 @@
 import 'package:geolocator/geolocator.dart';
 import 'package:geocoding/geocoding.dart';
-import 'package:permission_handler/permission_handler.dart';
-
 class LocationService {
   // Get current location
   static Future<Position?> getCurrentLocation() async {
@@ -17,33 +15,53 @@ class LocationService {
         return null;
       }
 
-      // Check location permissions using permission_handler for better control
-      PermissionStatus status = await Permission.location.status;
+      // Check location permissions using Geolocator
+      LocationPermission permission = await Geolocator.checkPermission();
 
-      if (status.isDenied) {
+      if (permission == LocationPermission.denied) {
         // Request permission
-        status = await Permission.location.request();
+        permission = await Geolocator.requestPermission();
       }
 
-      if (status.isDenied) {
+      if (permission == LocationPermission.denied) {
         print('Location permissions are denied');
         return null;
       }
 
-      if (status.isPermanentlyDenied) {
+      if (permission == LocationPermission.deniedForever) {
         print(
           'Location permissions are permanently denied. Please enable in settings.',
         );
         // Open app settings
-        await openAppSettings();
+        await Geolocator.openAppSettings();
         return null;
       }
 
-      // Get current position with timeout
-      return await Geolocator.getCurrentPosition(
-        desiredAccuracy: LocationAccuracy.high,
-        timeLimit: Duration(seconds: 15), // Increased timeout
-      );
+      // Try last known position first (instant, no GPS needed)
+      Position? lastKnown = await Geolocator.getLastKnownPosition();
+
+      // Try high accuracy with short timeout
+      try {
+        return await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 5),
+        );
+      } catch (_) {
+        // High accuracy timed out, try lower accuracy
+        try {
+          return await Geolocator.getCurrentPosition(
+            desiredAccuracy: LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 5),
+          );
+        } catch (_) {
+          // Both failed, return last known position if available
+          if (lastKnown != null) {
+            print('Using last known position');
+            return lastKnown;
+          }
+          return null;
+        }
+      }
     } catch (e) {
       print('Error getting current location: $e');
       return null;
@@ -124,8 +142,8 @@ class LocationService {
   // Request location permission
   static Future<bool> requestLocationPermission() async {
     try {
-      final status = await Permission.location.request();
-      return status == PermissionStatus.granted;
+      final permission = await Geolocator.requestPermission();
+      return permission == LocationPermission.always || permission == LocationPermission.whileInUse;
     } catch (e) {
       print('Error requesting location permission: $e');
       return false;
@@ -135,8 +153,8 @@ class LocationService {
   // Check if location permission is granted
   static Future<bool> isLocationPermissionGranted() async {
     try {
-      final status = await Permission.location.status;
-      return status == PermissionStatus.granted;
+      final permission = await Geolocator.checkPermission();
+      return permission == LocationPermission.always || permission == LocationPermission.whileInUse;
     } catch (e) {
       print('Error checking location permission: $e');
       return false;

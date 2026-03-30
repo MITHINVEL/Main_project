@@ -24,20 +24,24 @@ import 'package:monitoring_system_for_street_lights/services/sms_permission_serv
 import 'firebase_options.dart';
 
 /// Background message handler - MUST be top-level function
-/// This runs even when app is terminated!
+/// This runs even when app is terminated/backgrounded.
+/// We use a data-only FCM payload, so title/body come from message.data.
 @pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
-  await Firebase.initializeApp();
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
   print('🔔 Background message received: ${message.messageId}');
-  print('📱 Title: ${message.notification?.title}');
-  print('📝 Body: ${message.notification?.body}');
 
-  // Show local notification when app is in background/terminated
+  // title and body are in data payload (no notification field in FCM message)
+  final title = message.data['title']?.toString() ?? 'Street Light Alert';
+  final body = message.data['body']?.toString() ?? '';
+  final docId = (message.data['notificationId'] ?? message.data['notification_id'] ?? message.data['docId'])?.toString();
+
   try {
     await PushNotificationService.displayLocalNotification(
-      title: message.notification?.title ?? 'Street Light Alert',
-      body: message.notification?.body ?? '',
+      title: title,
+      body: body,
       data: message.data,
+      notificationDocId: docId,
     );
   } catch (e) {
     print('❌ Error showing background notification: $e');
