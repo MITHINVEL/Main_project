@@ -5,13 +5,12 @@ on:
     branches:
       - main
 
-defaults:
-  run:
-    working-directory: monitoring_system_for_street_lights
-
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: monitoring_system_for_street_lights
 
     steps:
       - name: Checkout code
@@ -24,14 +23,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: monitoring_system_for_street_lights/functions/package-lock.json
 
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
       - name: Install functions dependencies
         run: npm ci
         working-directory: monitoring_system_for_street_lights/functions
 
+      - name: Authenticate with Firebase
+        run: |
+          echo '${{ secrets.FIREBASE_TOKEN }}' > $HOME/gcloud-key.json
+          export GOOGLE_APPLICATION_CREDENTIALS=$HOME/gcloud-key.json
+
       - name: Deploy to Firebase
-        uses: w9jds/firebase-action@master
-        with:
-          args: deploy --only functions,firestore:rules
+        run: firebase deploy --only functions,firestore:rules --project street-light-monitor-dec88
         env:
-          GCP_SA_KEY: ${{ secrets.FIREBASE_TOKEN }}
-          PROJECT_PATH: monitoring_system_for_street_lights
+          GOOGLE_APPLICATION_CREDENTIALS: /home/runner/gcloud-key.json
